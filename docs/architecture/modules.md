@@ -21,9 +21,10 @@ neatGram is structured as an Android multi-module project where the bulk of the 
 
 ## 3. Autonomous APK Assembly (`afat` / `TMessagesProj_App`)
 
-The standalone universal APK (containing all native ABIs: `armeabi-v7a`, `arm64-v8a`, `x86`, `x86_64`) is produced by:
+The autonomous standalone release APK is produced by:
 - **Module**: `:TMessagesProj_App`
 - **Product Flavor**: `afat` (dimension `minApi`)
+  - Target architecture: strictly scoped to `arm64-v8a` (`ndk.abiFilters "arm64-v8a"`). This avoids compiling redundant C++ targets for `armeabi-v7a`, `x86`, and `x86_64`, reducing CMake build times and preventing GitHub Actions runner disk exhaustion.
 - **Build Types**:
   - `release`: Produces `app.apk` without package suffix (`applicationId = APP_PACKAGE`). Uses `TMessagesProj/config/release/AndroidManifest_SDK23.xml`.
   - `standalone`: Produces `app.apk` with `.web` suffix (`applicationId = APP_PACKAGE + ".web"`). Uses `TMessagesProj/config/release/AndroidManifest_standalone.xml`.
@@ -32,6 +33,10 @@ The standalone universal APK (containing all native ABIs: `armeabi-v7a`, `arm64-
 The target Gradle assembly task for the autonomous release APK is:
 ```bash
 ./gradlew :TMessagesProj_App:assembleAfatRelease
+```
+Output artifact location:
+```text
+TMessagesProj_App/build/outputs/apk/afat/release/app.apk
 ```
 
 ## 4. Packaging, Namespace, and Isolation Rules
