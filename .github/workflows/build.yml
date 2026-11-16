@@ -10,7 +10,7 @@ on:
 
 jobs:
   build:
-    name: Build arm64 Release APK
+    name: Build arm64-v8a Release APK
     runs-on: ubuntu-latest
     timeout-minutes: 90
 
@@ -24,7 +24,7 @@ jobs:
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: "temurin"
+          distribution: temurin
           java-version: "17"
 
       - name: Setup Android SDK
@@ -41,6 +41,7 @@ jobs:
             echo "ERROR: KEYSTORE_BASE64 secret is missing"
             exit 1
           fi
+
           echo "$KEYSTORE_BASE64" | base64 --decode > TMessagesProj/config/neatgram.keystore
 
       - name: Build Release APK (arm64-v8a)
@@ -62,7 +63,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish GitHub Release on tag
-        if: startsWith(github.ref, "refs/tags/v")
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: TMessagesProj_App/build/outputs/apk/afat/release/*.apk
