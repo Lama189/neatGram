@@ -627,11 +627,11 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
                     currentTitle = str;
                 }
             } else {
-                currentTitle = menuItemsOffset < dp(50) ? null :
+                currentTitle = menuItemsOffset < dp(50) ? LocaleController.getString("AppName", R.string.AppName) :
                     LocaleController.getString(R.string.MyStory);
             }
         } else {
-            currentTitle = menuItemsOffset < dp(50) ? null :
+            currentTitle = menuItemsOffset < dp(50) ? LocaleController.getString("AppName", R.string.AppName) :
                 LocaleController.formatPluralString("Stories", totalCount);
         }
 
@@ -946,7 +946,7 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
             telegramLogoView.setTranslationX(titleView.getTranslationX() + dp(1));
             telegramLogoView.setTranslationY(bottomY - barOffset + dp(14 + FAKE_TOP_PADDING + 4.333f) + translationOffset /*titleView.getTranslationY() + dpf2(37.33f)*/);
 
-            emojiStatusView.setTranslationX(titleView.getTranslationX() - dpf2(3.33f) + telegramLogoView.getMeasuredWidth());
+            emojiStatusView.setTranslationX(titleView.getTranslationX() - dpf2(3.33f) + (telegramLogoView != null && telegramLogoView.getVisibility() == VISIBLE ? telegramLogoView.getMeasuredWidth() : titleView.getTextWidth()));
             emojiStatusView.setTranslationY(bottomY - barOffset + dp(14 - 11 + FAKE_TOP_PADDING + 4.333f) + translationOffset);
 
             subtitleOverlayContainer.setTranslationX(titleView.getTranslationX());
@@ -2237,8 +2237,8 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
             telegramLogoView.setVisibility(logoAlpha > 0 ? VISIBLE : GONE);
         }
         if (emojiStatusView != null) {
-            emojiStatusView.setAlpha(logoAlpha);
-            emojiStatusView.setVisibility(logoAlpha > 0 ? VISIBLE : GONE);
+            emojiStatusView.setAlpha(progress);
+            emojiStatusView.setVisibility(progress > 0 ? VISIBLE : GONE);
         }
         if (subtitleOverlayContainer != null) {
             subtitleOverlayContainer.setAlpha(progress);

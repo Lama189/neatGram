@@ -1478,6 +1478,12 @@ public class LocaleController {
     }
 
     public static String getServerString(String key) {
+        if ("AppName".equals(key)) {
+            return "neatGram";
+        }
+        if ("AppNameBeta".equals(key)) {
+            return "neatGram Beta";
+        }
         String value = getInstance().localizationExternal.getByResName(key);
         if (value == null) {
             value = getInstance().getLocalizedString(key);
@@ -4781,6 +4787,12 @@ public class LocaleController {
 
     @Nullable
     private String getStringV2(String key, @StringRes int stringRes, String fallback) {
+        if (stringRes == R.string.AppName || "AppName".equals(key)) {
+            return "neatGram";
+        }
+        if (stringRes == R.string.AppNameBeta || "AppNameBeta".equals(key)) {
+            return "neatGram Beta";
+        }
         final Context context = ApplicationLoader.applicationContext;
         String value;
 
