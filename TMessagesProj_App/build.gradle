@@ -21,6 +21,29 @@ dependencies {
     implementation files('../TMessagesProj/libs/libgsaverification-client.aar')
 }
 
+def getSignProperty(String propName, String defaultValue = "") {
+    def envVal = System.getenv(propName)
+    if (envVal != null && !envVal.isEmpty()) {
+        return envVal
+    }
+    def localPropsFile = rootProject.file('local.properties')
+    if (localPropsFile.exists()) {
+        def props = new Properties()
+        localPropsFile.withInputStream { props.load(it) }
+        def val = props.getProperty(propName)
+        if (val != null && !val.isEmpty()) {
+            return val
+        }
+    }
+    if (project.hasProperty(propName)) {
+        def propVal = project.property(propName)
+        if (propVal != null && !propVal.toString().isEmpty()) {
+            return propVal.toString()
+        }
+    }
+    return defaultValue
+}
+
 android {
     compileSdkVersion 36
     buildToolsVersion '36.0.0'
@@ -49,16 +72,16 @@ android {
     signingConfigs {
         debug {
             storeFile file("../TMessagesProj/config/release.keystore")
-            storePassword RELEASE_STORE_PASSWORD
-            keyAlias RELEASE_KEY_ALIAS
-            keyPassword RELEASE_KEY_PASSWORD
+            storePassword getSignProperty("RELEASE_STORE_PASSWORD", "android")
+            keyAlias getSignProperty("RELEASE_KEY_ALIAS", "androidkey")
+            keyPassword getSignProperty("RELEASE_KEY_PASSWORD", "android")
         }
 
         release {
-            storeFile file("../TMessagesProj/config/release.keystore")
-            storePassword RELEASE_STORE_PASSWORD
-            keyAlias RELEASE_KEY_ALIAS
-            keyPassword RELEASE_KEY_PASSWORD
+            storeFile file("../TMessagesProj/config/neatgram.keystore")
+            storePassword getSignProperty("RELEASE_STORE_PASSWORD", "android")
+            keyAlias getSignProperty("RELEASE_KEY_ALIAS", "androidkey")
+            keyPassword getSignProperty("RELEASE_KEY_PASSWORD", "android")
         }
     }
 
