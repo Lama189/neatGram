@@ -27,8 +27,10 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Accept Android SDK Licenses
+        run: |
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager | head -n 1)
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
 
       - name: Setup Gradle & Cache
         uses: gradle/actions/setup-gradle@v4
@@ -41,7 +43,6 @@ jobs:
             echo "ERROR: KEYSTORE_BASE64 secret is missing"
             exit 1
           fi
-
           echo "$KEYSTORE_BASE64" | base64 --decode > TMessagesProj/config/neatgram.keystore
 
       - name: Build Release APK (arm64-v8a)
