@@ -272,6 +272,9 @@ public class ConnectionsManager extends BaseController {
         if (getUserConfig().getCurrentUser() != null) {
             userPremium = getUserConfig().getCurrentUser().premium;
         }
+        if (org.telegram.neatgram.config.NeatGramConfig.isPremiumDownloadBoost(currentAccount)) {
+            userPremium = true;
+        }
         init(SharedConfig.buildVersion(), TLRPC.LAYER, BuildVars.APP_ID, deviceModel, systemVersion, appVersion, langCode, systemLangCode, configPath, FileLog.getNetworkLogPath(), pushString, fingerprint, timezoneOffset, getUserConfig().getClientUserId(), userPremium, enablePushConnection);
     }
 
@@ -1059,6 +1062,14 @@ public class ConnectionsManager extends BaseController {
     public static native void native_receivedIntegrityCheckClassic(int currentAccount, int requestToken, String nonce, String token);
     public static native void native_receivedCaptchaResult(int currentAccount, int requestToken, int generation, String token);
     public static native boolean native_isGoodPrime(byte[] prime, int g);
+    public static native void native_setUserPremium(int currentAccount, boolean premium);
+
+    public static void setUserPremium(int currentAccount, boolean premium) {
+        try {
+            native_setUserPremium(currentAccount, premium);
+        } catch (Throwable ignore) {
+        }
+    }
 
 
     public static boolean testNativeTlScheme(NativeByteBuffer buffer, INativeTlTest test) {

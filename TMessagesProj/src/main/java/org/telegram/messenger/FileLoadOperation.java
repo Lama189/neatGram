@@ -299,7 +299,8 @@ public class FileLoadOperation {
     }
 
     private void updateParams() {
-        if ((preloadPrefixSize > 0 || MessagesController.getInstance(currentAccount).getfileExperimentalParams) && !forceSmallChunk) {
+        boolean boost = org.telegram.neatgram.config.NeatGramConfig.isPremiumDownloadBoost(currentAccount);
+        if ((boost || preloadPrefixSize > 0 || MessagesController.getInstance(currentAccount).getfileExperimentalParams) && !forceSmallChunk) {
             downloadChunkSizeBig = 1024 * 512;
             maxDownloadRequests = 8;
             maxDownloadRequestsBig = 8;
@@ -307,6 +308,16 @@ public class FileLoadOperation {
             downloadChunkSizeBig = 1024 * 128;
             maxDownloadRequests = 4;
             maxDownloadRequestsBig = 4;
+        }
+        if (boost) {
+            maxDownloadRequestsAnimation = 8;
+        } else {
+            maxDownloadRequestsAnimation = 4;
+        }
+        if (boost || UserConfig.getInstance(currentAccount).isPremium()) {
+            downloadConnectionsCount = ConnectionsManager.DownloadConnectionsCount;
+        } else {
+            downloadConnectionsCount = 2;
         }
         if (isStory) {
             // On slow connections the first part of a visible story arrives sooner when parts are small.
@@ -856,7 +867,7 @@ public class FileLoadOperation {
         useDownloadByteBudget = !MessagesController.getInstance(currentAccount).downloadImprovementKillswitch &&
                 totalBytesCount > 0 && key == null && !encryptFile && !isPreloadVideoOperation && preloadPrefixSize == 0;
         if (useDownloadByteBudget) {
-            boolean premium = UserConfig.getInstance(currentAccount).isPremium();
+            boolean premium = UserConfig.getInstance(currentAccount).isPremium() || org.telegram.neatgram.config.NeatGramConfig.isPremiumDownloadBoost(currentAccount);
             downloadConnectionsCount = premium ? ConnectionsManager.DownloadConnectionsCount : 2;
             int byteBudget = (premium ? 16 : 2) * 1024 * 1024;
             currentMaxDownloadRequests = byteBudget / currentDownloadChunkSize;
