@@ -189,6 +189,8 @@ import org.telegram.ui.Components.ColoredImageSpan;
 import org.telegram.ui.Components.DialogsActivityStatusLayout;
 import org.telegram.ui.Components.DialogsActivityTopBubblesFadeView;
 import org.telegram.ui.Components.DialogsActivityTopPanelLayout;
+import org.telegram.neatgram.config.NeatGramConfig;
+import org.telegram.neatgram.ui.RamInfoPillView;
 import org.telegram.ui.Components.FragmentFloatingButton;
 import org.telegram.ui.Components.FragmentSearchField;
 import org.telegram.ui.Components.IconBackgroundColors;
@@ -493,6 +495,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
     private FragmentSearchField fragmentSearchField;
     private SearchTextWatcher fragmentSearchFieldWatcher;
+    private RamInfoPillView ramInfoPillView;
 
     private SearchTabsAndFiltersLayout searchTabsAndFiltersLayout;
     private ViewPagerFixed.TabsView searchTabsView;
@@ -2990,6 +2993,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
+        if (ramInfoPillView != null) {
+            ramInfoPillView.destroy();
+            ramInfoPillView = null;
+        }
         if (observersGroup != null) {
             observersGroup.removeAllObservers();
             observersGroup = null;
@@ -3219,6 +3226,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             speedItem.setOnClickListener(v -> showDialog(new PremiumFeatureBottomSheet(DialogsActivity.this, PremiumPreviewFragment.PREMIUM_FEATURE_DOWNLOAD_SPEED, true)));
 
             fragmentSearchField.addAdditionalIcon(speedItem);
+
+            ramInfoPillView = new RamInfoPillView(context, resourceProvider, this);
+            ramInfoPillView.setVisibility(NeatGramConfig.isRamPillEnabled() ? View.VISIBLE : View.GONE);
+            fragmentSearchField.setRamInfoPillView(ramInfoPillView);
+
             fragmentSearchField.updateColors();
         }
 
@@ -3242,6 +3254,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             @Override
             public void onSearchExpand() {
                 searching = true;
+                if (ramInfoPillView != null) {
+                    ramInfoPillView.setVisibility(View.GONE);
+                }
                 if (switchItem != null) {
                     switchItem.setVisibility(View.GONE);
                 }
@@ -3306,6 +3321,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
                 searching = false;
                 searchWas = false;
+                if (ramInfoPillView != null) {
+                    ramInfoPillView.setVisibility(NeatGramConfig.isRamPillEnabled() ? View.VISIBLE : View.GONE);
+                }
                 if (viewPages[0] != null) {
                     viewPages[0].listView.setEmptyView(folderId == 0 ? viewPages[0].progressView : null);
                     showSearch(false, false, true);
@@ -6938,6 +6956,12 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void onResume() {
         super.onResume();
+        if (ramInfoPillView != null) {
+            ramInfoPillView.onResume();
+            if (!searching && !animatorSearchVisible.getValue()) {
+                ramInfoPillView.setVisibility(NeatGramConfig.isRamPillEnabled() ? View.VISIBLE : View.GONE);
+            }
+        }
         if (dialogStoriesCell != null) {
             dialogStoriesCell.onResume();
         }
@@ -7158,6 +7182,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void onPause() {
         super.onPause();
+        if (ramInfoPillView != null) {
+            ramInfoPillView.onPause();
+        }
         if (storiesBulletin != null) {
             storiesBulletin.hide();
             storiesBulletin = null;
@@ -7388,6 +7415,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
     private void showSearch(boolean show, boolean startFromDownloads, boolean animated, boolean forceNotOnlyDialogs) {
         animatorSearchVisible.setValue(show, animated);
+        if (ramInfoPillView != null) {
+            ramInfoPillView.setVisibility(!show && NeatGramConfig.isRamPillEnabled() ? View.VISIBLE : View.GONE);
+        }
 
         if (!show) {
             updateSpeedItem(false);

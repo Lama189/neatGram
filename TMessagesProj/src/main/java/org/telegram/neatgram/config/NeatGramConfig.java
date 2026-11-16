@@ -15,12 +15,14 @@ public class NeatGramConfig {
 
     private static final String PREFS_NAME = "neatgramconfig";
     private static final String KEY_PREMIUM_DOWNLOAD_BOOST = "premiumDownloadBoost";
+    private static final String KEY_RAM_PILL_ENABLED = "ramPillEnabled";
 
     private static final Object sync = new Object();
     private static volatile boolean initialized;
 
     // Global toggle (defaults to true)
     private static volatile boolean premiumDownloadBoost = true;
+    private static volatile boolean ramPillEnabled = true;
 
     // Per-account overrides (defaults to true)
     private static final boolean[] premiumDownloadBoostAccounts = new boolean[UserConfig.MAX_ACCOUNT_COUNT];
@@ -46,6 +48,7 @@ public class NeatGramConfig {
                 for (int i = 0; i < premiumDownloadBoostAccounts.length; i++) {
                     premiumDownloadBoostAccounts[i] = preferences.getBoolean(KEY_PREMIUM_DOWNLOAD_BOOST + "_" + i, premiumDownloadBoost);
                 }
+                ramPillEnabled = preferences.getBoolean(KEY_RAM_PILL_ENABLED, true);
                 initialized = true;
             }
         }
@@ -114,6 +117,30 @@ public class NeatGramConfig {
             if (currentAccount >= 0 && currentAccount < UserConfig.MAX_ACCOUNT_COUNT) {
                 boolean accountPremium = enabled || UserConfig.getInstance(currentAccount).isPremium();
                 ConnectionsManager.setUserPremium(currentAccount, accountPremium);
+            }
+        }
+    }
+
+    /**
+     * Checks if RAM info pill widget in search bar is enabled.
+     */
+    public static boolean isRamPillEnabled() {
+        ensureLoaded();
+        return ramPillEnabled;
+    }
+
+    /**
+     * Updates RAM info pill widget enabled state.
+     */
+    public static void setRamPillEnabled(boolean enabled) {
+        ensureLoaded();
+        synchronized (sync) {
+            ramPillEnabled = enabled;
+            Context context = ApplicationLoader.applicationContext;
+            if (context != null) {
+                SharedPreferences.Editor editor = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit();
+                editor.putBoolean(KEY_RAM_PILL_ENABLED, enabled);
+                editor.apply();
             }
         }
     }

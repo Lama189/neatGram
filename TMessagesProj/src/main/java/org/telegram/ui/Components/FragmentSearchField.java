@@ -37,6 +37,7 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.AnimationNotificationsLocker;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
+import org.telegram.neatgram.ui.RamInfoPillView;
 import org.telegram.ui.ActionBar.ActionBarMenuItem;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Adapters.FiltersView;
@@ -64,6 +65,7 @@ public class FragmentSearchField extends FrameLayout implements FactorAnimator.T
     private final ImageView searchIcon;
     private final ImageView closeIcon;
     private final LinearLayout additionalIconsLayout;
+    private RamInfoPillView ramInfoPillView;
     private boolean closeButtonForcedVisible;
     public final EditTextBoldCursor editText;
     private BlurredBackgroundDrawable blurredBackgroundDrawable;
@@ -183,6 +185,21 @@ public class FragmentSearchField extends FrameLayout implements FactorAnimator.T
         additionalIconsLayout.addView(icon);
     }
 
+    public void setRamInfoPillView(RamInfoPillView pillView) {
+        if (this.ramInfoPillView != null) {
+            removeView(this.ramInfoPillView);
+        }
+        this.ramInfoPillView = pillView;
+        if (pillView != null) {
+            addView(pillView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_VERTICAL | (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT), 6, 0, 6, 0));
+        }
+        checkUi_editTextPaddings();
+    }
+
+    public RamInfoPillView getRamInfoPillView() {
+        return ramInfoPillView;
+    }
+
     private Drawable bg;
 
     @Override
@@ -244,7 +261,8 @@ public class FragmentSearchField extends FrameLayout implements FactorAnimator.T
     private void checkUi_editTextPaddings() {
         final int filtersWidth = (int) animatorSearchFiltersWidth.getFactor() + dp(6); //searchFilterLayout.getWidth();
         final int pStart = Math.max(filtersWidth, dp(48));
-        final int pEnd = dp(48) + additionalIconsLayout.getMeasuredWidth();
+        final int pillWidth = (ramInfoPillView != null && ramInfoPillView.getVisibility() == VISIBLE) ? (ramInfoPillView.getMeasuredWidth() + dp(12)) : 0;
+        final int pEnd = dp(48) + additionalIconsLayout.getMeasuredWidth() + pillWidth;
 
         final int pLeft = LocaleController.isRTL ? pEnd : pStart;
         final int pRight = LocaleController.isRTL ? pStart : pEnd;
@@ -303,6 +321,10 @@ public class FragmentSearchField extends FrameLayout implements FactorAnimator.T
             if (searchFilterLayout.getChildAt(i) instanceof ActionBarMenuItem.SearchFilterView) {
                 ((ActionBarMenuItem.SearchFilterView) searchFilterLayout.getChildAt(i)).updateColors();
             }
+        }
+
+        if (ramInfoPillView != null) {
+            ramInfoPillView.updateColors();
         }
 
         invalidate();
