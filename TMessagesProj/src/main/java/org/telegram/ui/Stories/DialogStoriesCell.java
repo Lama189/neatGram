@@ -946,7 +946,7 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
             telegramLogoView.setTranslationX(titleView.getTranslationX() + dp(1));
             telegramLogoView.setTranslationY(bottomY - barOffset + dp(14 + FAKE_TOP_PADDING + 4.333f) + translationOffset /*titleView.getTranslationY() + dpf2(37.33f)*/);
 
-            emojiStatusView.setTranslationX(titleView.getTranslationX() - dpf2(3.33f) + (telegramLogoView != null && telegramLogoView.getVisibility() == VISIBLE ? telegramLogoView.getMeasuredWidth() : titleView.getTextWidth()));
+            emojiStatusView.setTranslationX(titleView.getTranslationX() - dpf2(3.33f) + (telegramLogoView != null && telegramLogoView.getVisibility() == VISIBLE ? telegramLogoView.getMeasuredWidth() : (titleView.getDrawable() != null ? titleView.getDrawable().getCurrentWidth() : 0)));
             emojiStatusView.setTranslationY(bottomY - barOffset + dp(14 - 11 + FAKE_TOP_PADDING + 4.333f) + translationOffset);
 
             subtitleOverlayContainer.setTranslationX(titleView.getTranslationX());
