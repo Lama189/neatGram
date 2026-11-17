@@ -71,7 +71,7 @@ jobs:
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
-        run: ./gradlew :TMessagesProj_App:assembleAfatRelease -PtargetAbi=arm64-v8a -Pandroid.injected.invoked.from.ide=false -x lint -x lintVitalAfatRelease -x test --no-daemon --stacktrace
+        run: ./gradlew :TMessagesProj_App:assembleAfatRelease -PtargetAbi=arm64-v8a -Pandroid.injected.invoked.from.ide=false --no-daemon --stacktrace
 
       - name: Show ccache stats
         if: always()
