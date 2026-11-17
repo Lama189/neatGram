@@ -3,6 +3,7 @@ package org.telegram.neatgram.ui;
 import android.content.Context;
 import android.view.View;
 
+import org.telegram.messenger.ApplicationLoader;
 import org.telegram.neatgram.config.NeatGramConfig;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
@@ -31,6 +32,7 @@ public class NeatGramSettingsActivity extends UniversalFragment {
     private static final int ID_ADS_DISABLE = 201;
     private static final int ID_BOOST_DOWNLOAD = 202;
     private static final int ID_RAM_PILL = 203;
+    private static final int ID_BACKGROUND_PUSH = 204;
 
     private boolean ghostCollapsed = true;
 
@@ -113,6 +115,10 @@ public class NeatGramSettingsActivity extends UniversalFragment {
 
         items.add(UItem.asHeader("Основные"));
         items.add(
+            UItem.asButtonCheck(ID_BACKGROUND_PUSH, "Фоновая служба уведомлений", "Мгновенные пуши без Google-сервисов")
+                .setChecked(NeatGramConfig.isBackgroundPushService())
+        );
+        items.add(
             UItem.asCheck(ID_ADS_DISABLE, "Отключить рекламу")
                 .setChecked(NeatGramConfig.isDisableAds())
         );
@@ -192,6 +198,19 @@ public class NeatGramSettingsActivity extends UniversalFragment {
                 break;
             case ID_RAM_PILL:
                 NeatGramConfig.setRamPillEnabled(!NeatGramConfig.isRamPillEnabled());
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
+                break;
+            case ID_BACKGROUND_PUSH:
+                boolean newPushState = !NeatGramConfig.isBackgroundPushService();
+                NeatGramConfig.setBackgroundPushService(newPushState);
+                ApplicationLoader.startPushService();
+                for (int i = 0; i < org.telegram.messenger.UserConfig.MAX_ACCOUNT_COUNT; i++) {
+                    if (org.telegram.messenger.UserConfig.getInstance(i).isClientActivated()) {
+                        org.telegram.tgnet.ConnectionsManager.getInstance(i).setPushConnectionEnabled(newPushState);
+                    }
+                }
                 if (listView != null && listView.adapter != null) {
                     listView.adapter.update(true);
                 }

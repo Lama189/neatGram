@@ -797,7 +797,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             items.add(UItem.asShadow(null));
         }
 
-        items.add(SettingCell.Factory.of(SETTING_NEATGRAM, 0xFF4F555E, 0xFF353940, R.drawable.ic_neatgram_foreground, "Настройки neatGram"));
+        items.add(SettingCell.Factory.of(SETTING_NEATGRAM, 0xFF4F555E, 0xFF353940, R.drawable.ic_neatgram_settings, "Настройки neatGram"));
         items.add(UItem.asShadow(null));
 
         items.add(SettingCell.Factory.of(1, IconBackgroundColors.BLUE.top, IconBackgroundColors.BLUE.bottom, R.drawable.settings_account, getString(R.string.SettingsAccount), getString(R.string.SettingsAccountInfo)));

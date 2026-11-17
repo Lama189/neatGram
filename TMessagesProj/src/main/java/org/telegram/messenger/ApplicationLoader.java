@@ -38,6 +38,7 @@ import com.google.android.gms.common.GooglePlayServicesUtil;
 import org.json.JSONObject;
 import org.telegram.messenger.utils.Choreographer60FpsContent;
 import org.telegram.messenger.voip.VideoCapturerDevice;
+import org.telegram.neatgram.config.NeatGramConfig;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.BaseFragment;
@@ -376,21 +377,24 @@ public class ApplicationLoader extends Application {
     });
 
     public static void startPushService() {
-        SharedPreferences preferences = MessagesController.getGlobalNotificationsSettings();
-        boolean enabled;
-        if (preferences.contains("pushService")) {
-            enabled = preferences.getBoolean("pushService", true);
-        } else {
-            enabled = MessagesController.getMainSettings(UserConfig.selectedAccount).getBoolean("keepAliveService", false);
-        }
+        boolean enabled = NeatGramConfig.isBackgroundPushService();
         if (enabled) {
             try {
-                applicationContext.startService(new Intent(applicationContext, NotificationsService.class));
+                Intent intent = new Intent(applicationContext, NotificationsService.class);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    applicationContext.startForegroundService(intent);
+                } else {
+                    applicationContext.startService(intent);
+                }
             } catch (Throwable ignore) {
 
             }
         } else {
-            applicationContext.stopService(new Intent(applicationContext, NotificationsService.class));
+            try {
+                applicationContext.stopService(new Intent(applicationContext, NotificationsService.class));
+            } catch (Throwable ignore) {
+
+            }
         }
     }
 

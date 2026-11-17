@@ -17,6 +17,7 @@ public class NeatGramConfig {
     private static final String KEY_PREMIUM_DOWNLOAD_BOOST = "premiumDownloadBoost";
     private static final String KEY_RAM_PILL_ENABLED = "ramPillEnabled";
     private static final String KEY_DISABLE_ADS = "disableAds";
+    private static final String KEY_BACKGROUND_PUSH_SERVICE = "backgroundPushService";
 
     private static final String KEY_GHOST_MODE_ENABLED = "ghostModeEnabled";
     private static final String KEY_GHOST_DONT_READ_MESSAGES = "ghostDontReadMessages";
@@ -34,6 +35,7 @@ public class NeatGramConfig {
     private static volatile boolean premiumDownloadBoost = true;
     private static volatile boolean ramPillEnabled = true;
     private static volatile boolean disableAds = true;
+    private static volatile boolean backgroundPushService = true;
 
     private static volatile boolean ghostModeEnabled = false;
     private static volatile boolean ghostDontReadMessages = true;
@@ -86,6 +88,7 @@ public class NeatGramConfig {
                 }
                 ramPillEnabled = preferences.getBoolean(KEY_RAM_PILL_ENABLED, true);
                 disableAds = preferences.getBoolean(KEY_DISABLE_ADS, true);
+                backgroundPushService = preferences.getBoolean(KEY_BACKGROUND_PUSH_SERVICE, true);
 
                 ghostModeEnabled = preferences.getBoolean(KEY_GHOST_MODE_ENABLED, false);
                 ghostDontReadMessages = preferences.getBoolean(KEY_GHOST_DONT_READ_MESSAGES, true);
@@ -208,6 +211,26 @@ public class NeatGramConfig {
             if (context != null) {
                 SharedPreferences.Editor editor = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit();
                 editor.putBoolean(KEY_DISABLE_ADS, disabled);
+                editor.apply();
+            }
+        }
+    }
+
+    // --- Background Push Service ---
+
+    public static boolean isBackgroundPushService() {
+        ensureLoaded();
+        return backgroundPushService;
+    }
+
+    public static void setBackgroundPushService(boolean enabled) {
+        ensureLoaded();
+        synchronized (sync) {
+            backgroundPushService = enabled;
+            Context context = ApplicationLoader.applicationContext;
+            if (context != null) {
+                SharedPreferences.Editor editor = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit();
+                editor.putBoolean(KEY_BACKGROUND_PUSH_SERVICE, enabled);
                 editor.apply();
             }
         }

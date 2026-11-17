@@ -294,6 +294,9 @@ public class ConnectionsManager extends BaseController {
     }
 
     public boolean isPushConnectionEnabled() {
+        if (org.telegram.neatgram.config.NeatGramConfig.isBackgroundPushService()) {
+            return true;
+        }
         SharedPreferences preferences = MessagesController.getGlobalNotificationsSettings();
         if (preferences.contains("pushConnection")) {
             return preferences.getBoolean("pushConnection", true);

@@ -23,6 +23,7 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
@@ -94,6 +95,8 @@
 
     <application
         android:name="org.telegram.messenger.ApplicationLoader"
+        android:icon="@mipmap/ic_neatgram"
+        android:roundIcon="@mipmap/ic_neatgram_round"
         android:allowBackup="true"
         android:restoreAnyVersion="true"
         android:backupAgent=".BackupAgent"
@@ -281,25 +284,25 @@
                 <data android:host="t.me" android:scheme="http" />
                 <data android:host="t.me" android:scheme="https" />
             </intent-filter>
-            <intent-filter android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:priority="1">
+            <intent-filter android:icon="@mipmap/ic_neatgram" android:roundIcon="@mipmap/ic_neatgram_round" android:priority="1">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="tonsite" />
             </intent-filter>
-            <intent-filter android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:priority="1">
+            <intent-filter android:icon="@mipmap/ic_neatgram" android:roundIcon="@mipmap/ic_neatgram_round" android:priority="1">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="tg" />
             </intent-filter>
-            <intent-filter android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:priority="1">
+            <intent-filter android:icon="@mipmap/ic_neatgram" android:roundIcon="@mipmap/ic_neatgram_round" android:priority="1">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="ton" android:host="transfer" android:pathPrefix="/" />
             </intent-filter>
-            <intent-filter android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:priority="1">
+            <intent-filter android:icon="@mipmap/ic_neatgram" android:roundIcon="@mipmap/ic_neatgram_round" android:priority="1">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
@@ -347,7 +350,7 @@
             android:stateNotNeeded="true"
             android:theme="@style/Theme.TMessages.Transparent"
             android:exported="true">
-            <intent-filter android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:priority="1">
+            <intent-filter android:icon="@mipmap/ic_neatgram" android:roundIcon="@mipmap/ic_neatgram_round" android:priority="1">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -360,7 +363,7 @@
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustPan"
             android:exported="true">
-            <intent-filter android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round">
+            <intent-filter android:icon="@mipmap/ic_neatgram" android:roundIcon="@mipmap/ic_neatgram_round">
                 <action android:name="org.telegram.passport.AUTHORIZE"/>
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
@@ -371,7 +374,7 @@
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustPan"
             android:exported="true">
-            <intent-filter android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round">
+            <intent-filter android:icon="@mipmap/ic_neatgram" android:roundIcon="@mipmap/ic_neatgram_round">
                 <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE"/>
             </intent-filter>
         </activity>
@@ -381,7 +384,7 @@
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustPan"
             android:exported="true">
-            <intent-filter android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round">
+            <intent-filter android:icon="@mipmap/ic_neatgram" android:roundIcon="@mipmap/ic_neatgram_round">
                 <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE"/>
             </intent-filter>
         </activity>
@@ -512,7 +515,7 @@
             android:name=".NotificationsService"
             android:enabled="true"
             android:exported="true"
-            android:foregroundServiceType="dataSync"
+            android:foregroundServiceType="remoteMessaging|dataSync"
         />
         <service
             android:name=".NotificationRepeat"

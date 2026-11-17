@@ -288,6 +288,9 @@ public class AppIconsSelectorCell extends RecyclerListView implements Notificati
         }
 
         private void bind(LauncherIconController.LauncherIcon icon) {
+            boolean isDefault = icon == LauncherIconController.LauncherIcon.DEFAULT;
+            fillPaint.setColor(isDefault ? 0xFF141518 : Color.WHITE);
+            iconView.setIsDefault(isDefault);
             iconView.setImageResource(icon.background);
 
             MarginLayoutParams params = (MarginLayoutParams) titleView.getLayoutParams();
@@ -309,6 +312,7 @@ public class AppIconsSelectorCell extends RecyclerListView implements Notificati
     }
 
     public static class AdaptiveIconImageView extends ImageView {
+        private boolean isDefault;
         private Drawable foreground;
         private Path path = new Path();
         private int outerPadding = AndroidUtilities.dp(5);
@@ -316,6 +320,19 @@ public class AppIconsSelectorCell extends RecyclerListView implements Notificati
 
         public AdaptiveIconImageView(Context context) {
             super(context);
+        }
+
+        public void setIsDefault(boolean isDefault) {
+            if (this.isDefault != isDefault) {
+                this.isDefault = isDefault;
+                if (isDefault) {
+                    setPadding(0, 0, 0, 0);
+                } else {
+                    setPadding(AndroidUtilities.dp(8), AndroidUtilities.dp(8), AndroidUtilities.dp(8), AndroidUtilities.dp(8));
+                }
+                updatePath();
+                invalidate();
+            }
         }
 
         public void setForeground(int res) {
@@ -343,15 +360,22 @@ public class AppIconsSelectorCell extends RecyclerListView implements Notificati
 
         @Override
         public void draw(Canvas canvas) {
-            canvas.save();
-            canvas.clipPath(path);
-            canvas.scale(1f + backgroundOuterPadding / (float) getWidth(), 1f + backgroundOuterPadding / (float) getHeight(), getWidth() / 2f, getHeight() / 2f);
-            super.draw(canvas);
-            canvas.restore();
+            if (isDefault) {
+                if (foreground != null) {
+                    foreground.setBounds(0, 0, getWidth(), getHeight());
+                    foreground.draw(canvas);
+                }
+            } else {
+                canvas.save();
+                canvas.clipPath(path);
+                canvas.scale(1f + backgroundOuterPadding / (float) getWidth(), 1f + backgroundOuterPadding / (float) getHeight(), getWidth() / 2f, getHeight() / 2f);
+                super.draw(canvas);
+                canvas.restore();
 
-            if (foreground != null) {
-                foreground.setBounds(-outerPadding, -outerPadding, getWidth() + outerPadding, getHeight() + outerPadding);
-                foreground.draw(canvas);
+                if (foreground != null) {
+                    foreground.setBounds(-outerPadding, -outerPadding, getWidth() + outerPadding, getHeight() + outerPadding);
+                    foreground.draw(canvas);
+                }
             }
         }
 
