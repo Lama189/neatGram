@@ -3726,6 +3726,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
         if (messageObject == null) {
             return false;
         }
+        org.telegram.neatgram.history.NeatGramHistoryController.getInstance(messageObject.currentAccount).protectTtlMedia(messageObject);
         isSilent = silent;
         checkVolumeBarUI();
         if ((audioPlayer != null || videoPlayer != null) && isSamePlayingMessage(messageObject)) {

@@ -386,6 +386,7 @@ public class MessagesStorage extends BaseController {
                 }
             }
             databaseCreated = true;
+            org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).initDatabase(database);
         } catch (Exception e) {
             FileLog.e(e);
             if (openTries < 3 && e.getMessage() != null && e.getMessage().contains("malformed")) {
@@ -4878,25 +4879,38 @@ public class MessagesStorage extends BaseController {
                         message.readAttachPath(data, getUserConfig().clientUserId);
                         data.reuse();
                         if (message.media != null) {
-                            if (!addFilesToDelete(message, filesToDelete, idsToDelete, namesToDelete, true)) {
-                                continue;
-                            } else {
-                                if (message.media.document != null) {
-                                    message.media.document = new TLRPC.TL_documentEmpty();
-                                } else if (message.media.photo != null) {
-                                    message.media.photo = new TLRPC.TL_photoEmpty();
+                            if (org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).handleTtlMediaEmptying(message)) {
+                                message.media.flags = message.media.flags & ~1;
+                                message.id = cursor.intValue(1);
+                                message.date = cursor.intValue(2);
+                                message.dialog_id = cursor.longValue(3);
+                                NativeByteBuffer customParams = cursor.byteBufferValue(4);
+                                if (customParams != null) {
+                                    MessageCustomParamsHelper.readLocalParams(message, customParams);
+                                    customParams.reuse();
                                 }
+                                messages.add(message);
+                            } else {
+                                if (!addFilesToDelete(message, filesToDelete, idsToDelete, namesToDelete, true)) {
+                                    continue;
+                                } else {
+                                    if (message.media.document != null) {
+                                        message.media.document = new TLRPC.TL_documentEmpty();
+                                    } else if (message.media.photo != null) {
+                                        message.media.photo = new TLRPC.TL_photoEmpty();
+                                    }
+                                }
+                                message.media.flags = message.media.flags & ~1;
+                                message.id = cursor.intValue(1);
+                                message.date = cursor.intValue(2);
+                                message.dialog_id = cursor.longValue(3);
+                                NativeByteBuffer customParams = cursor.byteBufferValue(4);
+                                if (customParams != null) {
+                                    MessageCustomParamsHelper.readLocalParams(message, customParams);
+                                    customParams.reuse();
+                                }
+                                messages.add(message);
                             }
-                            message.media.flags = message.media.flags & ~1;
-                            message.id = cursor.intValue(1);
-                            message.date = cursor.intValue(2);
-                            message.dialog_id = cursor.longValue(3);
-                            NativeByteBuffer customParams = cursor.byteBufferValue(4);
-                            if (customParams != null) {
-                                MessageCustomParamsHelper.readLocalParams(message, customParams);
-                                customParams.reuse();
-                            }
-                            messages.add(message);
                         }
                     }
                 }
@@ -14772,6 +14786,7 @@ public class MessagesStorage extends BaseController {
                 LongSparseArray<ArrayList<Integer>> savedMessagesByDialogs = new LongSparseArray<>();
                 HashMap<TopicKey, int[]> topicsMessagesToUpdate = new HashMap<>();
                 LongSparseArray<ArrayList<Integer>> messagesByDialogs = new LongSparseArray<>();
+                LongSparseArray<ArrayList<Integer>> preservedMessagesByDialogs = new LongSparseArray<>();
                 String ids = TextUtils.join(",", messages);
                 ArrayList<File> filesToDelete = new ArrayList<>();
                 ArrayList<String> namesToDelete = new ArrayList<>();
@@ -14789,6 +14804,7 @@ public class MessagesStorage extends BaseController {
                     while (cursor.next()) {
                         long did = cursor.longValue(0);
                         int mid = cursor.intValue(5);
+                        int out = cursor.intValue(3);
                         unknownMessages.remove((Integer) mid);
                         ArrayList<Integer> mids = messagesByDialogs.get(did);
                         if (mids == null) {
@@ -14796,9 +14812,10 @@ public class MessagesStorage extends BaseController {
                             messagesByDialogs.put(did, mids);
                         }
                         mids.add(mid);
+
                         if (did != currentUser) {
                             int read_state = cursor.intValue(2);
-                            if (cursor.intValue(3) == 0) {
+                            if (out == 0) {
                                 Integer[] unread_count = dialogsToUpdate.get(did);
                                 if (unread_count == null) {
                                     unread_count = new Integer[]{0, 0};
@@ -14812,31 +14829,65 @@ public class MessagesStorage extends BaseController {
                                 }
                             }
                         }
-                        if (!DialogObject.isEncryptedDialog(did) && !deleteFiles && did != currentUser) {
+
+                        boolean mayNeedData = did == currentUser || DialogObject.isEncryptedDialog(did) || deleteFiles ||
+                                org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).shouldPreserveDeleted(did, mid) ||
+                                org.telegram.neatgram.config.NeatGramConfig.isSaveTtlMedia(currentAccount);
+
+                        if (!mayNeedData && out != 0) {
                             continue;
                         }
+
                         NativeByteBuffer data = cursor.byteBufferValue(1);
+                        TLRPC.Message message = null;
                         if (data != null) {
-                            TLRPC.Message message = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
+                            message = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
                             message.readAttachPath(data, currentUser);
                             if (deletedMessages != null) {
                                 deletedMessages.add(message);
                             }
                             data.reuse();
-                            if (DialogObject.isEncryptedDialog(did) || deleteFiles) {
-                                addFilesToDelete(message, filesToDelete, idsToDelete, namesToDelete, false);
-                            }
+                        }
 
-                            if (did == currentUser) {
-                                long savedDialogId = MessageObject.getSavedDialogId(currentUser, message);
-                                if (savedDialogId != 0) {
-                                    ArrayList<Integer> mids2 = savedMessagesByDialogs.get(savedDialogId);
-                                    if (mids2 == null) {
-                                        mids2 = new ArrayList<>();
-                                        savedMessagesByDialogs.put(savedDialogId, mids2);
-                                    }
-                                    mids2.add(mid);
+                        boolean isOutgoing = (out != 0) || (message != null && (message.out || MessageObject.getFromChatId(message) == currentUser));
+
+                        boolean shouldPreserve = false;
+                        if (!isOutgoing) {
+                            shouldPreserve = org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).shouldPreserveDeleted(did, mid);
+                            if (!shouldPreserve && message != null && org.telegram.neatgram.config.NeatGramConfig.isSaveTtlMedia(currentAccount) && (message.ttl > 0 || (message.media != null && message.media.ttl_seconds > 0))) {
+                                shouldPreserve = true;
+                            }
+                        } else {
+                            org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).removeDeletedFromCache(did, mid);
+                        }
+
+                        if (shouldPreserve) {
+                            ArrayList<Integer> pMids = preservedMessagesByDialogs.get(did);
+                            if (pMids == null) {
+                                pMids = new ArrayList<>();
+                                preservedMessagesByDialogs.put(did, pMids);
+                            }
+                            pMids.add(mid);
+                            org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).recordDeleted(did, mid, getConnectionsManager().getCurrentTime());
+                            if (message != null) {
+                                org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).protectMedia(message);
+                                if (message.ttl > 0 || (message.media != null && message.media.ttl_seconds > 0)) {
+                                    org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).clearMessageTtl(database, message);
                                 }
+                            }
+                        } else if (message != null && (DialogObject.isEncryptedDialog(did) || deleteFiles)) {
+                            addFilesToDelete(message, filesToDelete, idsToDelete, namesToDelete, false);
+                        }
+
+                        if (did == currentUser && message != null) {
+                            long savedDialogId = MessageObject.getSavedDialogId(currentUser, message);
+                            if (savedDialogId != 0) {
+                                ArrayList<Integer> mids2 = savedMessagesByDialogs.get(savedDialogId);
+                                if (mids2 == null) {
+                                    mids2 = new ArrayList<>();
+                                    savedMessagesByDialogs.put(savedDialogId, mids2);
+                                }
+                                mids2.add(mid);
                             }
                         }
                     }
@@ -15067,13 +15118,21 @@ public class MessagesStorage extends BaseController {
                         cursor.dispose();
                         cursor = null;
                     }
-                    database.executeFast(String.format(Locale.US, "DELETE FROM messages_v2 WHERE mid IN(%s) AND uid = %d", ids, did)).stepThis().dispose();
-                    database.executeFast(String.format(Locale.US, "DELETE FROM messages_topics WHERE mid IN(%s) AND uid = %d", ids, did)).stepThis().dispose();
-                    database.executeFast(String.format(Locale.US, "DELETE FROM polls_v2 WHERE mid IN(%s) AND uid = %d", ids, did)).stepThis().dispose();
-                    database.executeFast(String.format(Locale.US, "DELETE FROM widget_state WHERE mid IN(%s) AND uid = %d", ids, did)).stepThis().dispose();
-                    database.executeFast(String.format(Locale.US, "DELETE FROM widget_heights WHERE mid IN(%s) AND uid = %d", ids, did)).stepThis().dispose();
-                    database.executeFast(String.format(Locale.US, "DELETE FROM bot_keyboard WHERE mid IN(%s) AND uid = %d", ids, did)).stepThis().dispose();
-                    database.executeFast(String.format(Locale.US, "DELETE FROM bot_keyboard_topics WHERE mid IN(%s) AND uid = %d", ids, did)).stepThis().dispose();
+                    ArrayList<Integer> preservedMids = preservedMessagesByDialogs.get(did);
+                    ArrayList<Integer> midsToDelete = new ArrayList<>(mids);
+                    if (preservedMids != null) {
+                        midsToDelete.removeAll(preservedMids);
+                    }
+                    if (!midsToDelete.isEmpty()) {
+                        String idsToDeleteStr = TextUtils.join(",", midsToDelete);
+                        database.executeFast(String.format(Locale.US, "DELETE FROM messages_v2 WHERE mid IN(%s) AND uid = %d", idsToDeleteStr, did)).stepThis().dispose();
+                        database.executeFast(String.format(Locale.US, "DELETE FROM messages_topics WHERE mid IN(%s) AND uid = %d", idsToDeleteStr, did)).stepThis().dispose();
+                        database.executeFast(String.format(Locale.US, "DELETE FROM polls_v2 WHERE mid IN(%s) AND uid = %d", idsToDeleteStr, did)).stepThis().dispose();
+                        database.executeFast(String.format(Locale.US, "DELETE FROM widget_state WHERE mid IN(%s) AND uid = %d", idsToDeleteStr, did)).stepThis().dispose();
+                        database.executeFast(String.format(Locale.US, "DELETE FROM widget_heights WHERE mid IN(%s) AND uid = %d", idsToDeleteStr, did)).stepThis().dispose();
+                        database.executeFast(String.format(Locale.US, "DELETE FROM bot_keyboard WHERE mid IN(%s) AND uid = %d", idsToDeleteStr, did)).stepThis().dispose();
+                        database.executeFast(String.format(Locale.US, "DELETE FROM bot_keyboard_topics WHERE mid IN(%s) AND uid = %d", idsToDeleteStr, did)).stepThis().dispose();
+                    }
                     if (unknownMessages.isEmpty()) {
                         cursor = database.queryFinalized(String.format(Locale.US, "SELECT uid, type FROM media_v4 WHERE mid IN(%s) AND uid = %d", ids, did));
                         SparseArray<LongSparseArray<Integer>> mediaCounts = null;
@@ -15190,8 +15249,11 @@ public class MessagesStorage extends BaseController {
                             state = null;
                         }
                     }
-                    database.executeFast(String.format(Locale.US, "DELETE FROM media_v4 WHERE mid IN(%s) AND uid = %d", ids, did)).stepThis().dispose();
-                    database.executeFast(String.format(Locale.US, "DELETE FROM media_topics WHERE mid IN(%s) AND uid = %d", ids, did)).stepThis().dispose();
+                    if (!midsToDelete.isEmpty()) {
+                        String idsToDeleteStr = TextUtils.join(",", midsToDelete);
+                        database.executeFast(String.format(Locale.US, "DELETE FROM media_v4 WHERE mid IN(%s) AND uid = %d", idsToDeleteStr, did)).stepThis().dispose();
+                        database.executeFast(String.format(Locale.US, "DELETE FROM media_topics WHERE mid IN(%s) AND uid = %d", idsToDeleteStr, did)).stepThis().dispose();
+                    }
                 }
                 if (!savedMessagesByDialogs.isEmpty()) {
                     AndroidUtilities.runOnUIThread(() -> getMessagesController().getSavedMessagesController().updateDeleted(savedMessagesByDialogs));
@@ -16465,6 +16527,7 @@ public class MessagesStorage extends BaseController {
                                     TLRPC.Message oldMessage = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
                                     oldMessage.readAttachPath(data, getUserConfig().clientUserId);
                                     data.reuse();
+                                    org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).onMessageEditing(database, oldMessage, message);
                                     if (reactionUpdates != null) {
                                         reactionUpdates.add(new SavedReactionsUpdate(selfId, oldMessage, message));
                                     }
@@ -16476,7 +16539,9 @@ public class MessagesStorage extends BaseController {
                                         message.ttl = cursor.intValue(2);
                                     }
                                     boolean sameMedia = false;
-                                    if (oldMessage.media instanceof TLRPC.TL_messageMediaPhoto && message.media instanceof TLRPC.TL_messageMediaPhoto && oldMessage.media.photo != null && message.media.photo != null) {
+                                    if (org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).handleTtlMediaEdit(oldMessage, message)) {
+                                        sameMedia = true;
+                                    } else if (oldMessage.media instanceof TLRPC.TL_messageMediaPhoto && message.media instanceof TLRPC.TL_messageMediaPhoto && oldMessage.media.photo != null && message.media.photo != null) {
                                         sameMedia = oldMessage.media.photo.id == message.media.photo.id;
                                     } else if (oldMessage.media instanceof TLRPC.TL_messageMediaDocument && message.media instanceof TLRPC.TL_messageMediaDocument && oldMessage.media.document != null && message.media.document != null) {
                                         sameMedia = oldMessage.media.document.id == message.media.document.id;

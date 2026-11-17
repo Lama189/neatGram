@@ -1374,6 +1374,7 @@ public class SecretMediaViewer implements NotificationCenter.NotificationCenterD
         if (parentActivity == null || messageObject == null || !messageObject.needDrawBluredPreview() || provider == null) {
             return;
         }
+        org.telegram.neatgram.history.NeatGramHistoryController.getInstance(messageObject.currentAccount).protectTtlMedia(messageObject);
         final PhotoViewer.PlaceProviderObject object = provider.getPlaceForPhoto(messageObject, null, 0, true, false);
         if (object == null) {
             return;

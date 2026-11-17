@@ -1297,6 +1297,8 @@ public class ChatActivity extends BaseFragment implements
     public final static int OPTION_WELCOME_REVERT = 116;
     public final static int OPTION_SEND_MONEY = 117;
     public final static int OPTION_STOP_LIVE_LOCATION = 118;
+    public final static int OPTION_NEATGRAM_EDIT_HISTORY = 991;
+    public final static int OPTION_NEATGRAM_DELETE_PERMANENTLY = 992;
 
     private final static int[] allowedNotificationsDuringChatListAnimations = new int[]{
             NotificationCenter.messagesRead,
@@ -3159,6 +3161,12 @@ public class ChatActivity extends BaseFragment implements
             getMessagesController().getSavedMessagesController().checkSavedDialogCount(getTopicId());
         }
 
+        org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).loadDialogHistory(dialog_id, () -> {
+            if (chatListView != null) {
+                chatListView.invalidateViews();
+            }
+        });
+
         return true;
     }
 
@@ -3339,6 +3347,7 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
+        org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).releaseDialogHistory(dialog_id);
         if (messageMetricsView != null) {
             messageMetricsView.finish();
         }
@@ -16281,7 +16290,9 @@ public class ChatActivity extends BaseFragment implements
             return null;
         }
         final long taskId = getMessagesController().createDeleteShowOnceTask(dialog_id, messageObject.getId());
-        messageObject.forceExpired = true;
+        if (!org.telegram.neatgram.config.NeatGramConfig.isSaveTtlMedia(currentAccount)) {
+            messageObject.forceExpired = true;
+        }
         if (messageObject.isOutOwner() || !messageObject.isRoundOnce() && !messageObject.isVoiceOnce()) {
             ArrayList<MessageObject> msgs = new ArrayList<>();
             msgs.add(messageObject);
@@ -23112,7 +23123,71 @@ public class ChatActivity extends BaseFragment implements
             if (scheduled != (chatMode == MODE_SCHEDULED)) {
                 return;
             }
-            ArrayList<Integer> markAsDeletedMessages = (ArrayList<Integer>) args[0];
+            ArrayList<Integer> originalMarkAsDeleted = (ArrayList<Integer>) args[0];
+            ArrayList<Integer> keptIds = new ArrayList<>();
+            ArrayList<Integer> actuallyDeletedIds = new ArrayList<>();
+            for (int a = 0; a < originalMarkAsDeleted.size(); a++) {
+                int mid = originalMarkAsDeleted.get(a);
+                MessageObject msgObj = messagesDict[0] != null ? messagesDict[0].get(mid) : null;
+                if (msgObj == null && messagesDict.length > 1 && messagesDict[1] != null) {
+                    msgObj = messagesDict[1].get(mid);
+                }
+                if (msgObj == null) {
+                    for (int i = 0, N = this.messages.size(); i < N; i++) {
+                        MessageObject m = this.messages.get(i);
+                        if (m != null && m.getId() == mid) {
+                            msgObj = m;
+                            break;
+                        }
+                    }
+                }
+                boolean isOutgoing = (msgObj != null && msgObj.isOutOwner());
+                if (org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).promotePendingDeletionToCache(dialog_id, mid, isOutgoing)) {
+                    keptIds.add(mid);
+                } else {
+                    actuallyDeletedIds.add(mid);
+                }
+            }
+            if (!keptIds.isEmpty()) {
+                for (int a = 0; a < keptIds.size(); a++) {
+                    int mid = keptIds.get(a);
+                    MessageObject msg = messagesDict[0] != null ? messagesDict[0].get(mid) : null;
+                    if (msg == null && messagesDict.length > 1 && messagesDict[1] != null) {
+                        msg = messagesDict[1].get(mid);
+                    }
+                    if (msg == null) {
+                        for (int i = 0, N = this.messages.size(); i < N; i++) {
+                            MessageObject m = this.messages.get(i);
+                            if (m != null && m.getId() == mid) {
+                                msg = m;
+                                break;
+                            }
+                        }
+                    }
+                    if (msg != null) {
+                        msg.resetLayout();
+                    }
+                }
+                if (chatListView != null) {
+                    for (int i = 0; i < chatListView.getChildCount(); i++) {
+                        View child = chatListView.getChildAt(i);
+                        if (child instanceof ChatMessageCell) {
+                            ChatMessageCell cell = (ChatMessageCell) child;
+                            MessageObject cellMsg = cell.getMessageObject();
+                            if (cellMsg != null && keptIds.contains(cellMsg.getId())) {
+                                cellMsg.resetLayout();
+                                cell.refreshMessageObject(cellMsg);
+                                cell.animateDeletedReveal();
+                                cell.requestLayout();
+                            }
+                        }
+                    }
+                }
+            }
+            if (actuallyDeletedIds.isEmpty()) {
+                return;
+            }
+            ArrayList<Integer> markAsDeletedMessages = actuallyDeletedIds;
             long channelId = (Long) args[1];
             boolean update = args.length > 2 && (boolean) args[2];
             boolean sent = args.length > 3 && (boolean) args[3];
@@ -34336,6 +34411,29 @@ public class ChatActivity extends BaseFragment implements
                 }
                 preserveDim = true;
                 createDeleteMessagesAlert(selectedObject, selectedObjectGroup, true);
+                break;
+            }
+            case OPTION_NEATGRAM_EDIT_HISTORY: {
+                if (selectedObject != null) {
+                    org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).showEditHistorySheet(ChatActivity.this, selectedObject);
+                }
+                break;
+            }
+            case OPTION_NEATGRAM_DELETE_PERMANENTLY: {
+                if (selectedObject != null && getParentActivity() != null) {
+                    final MessageObject msgToDelete = selectedObject;
+                    new AlertDialog.Builder(getParentActivity())
+                        .setTitle(LocaleController.getString(R.string.Delete))
+                        .setMessage("Удалить это сообщение навсегда из базы данных?")
+                        .setPositiveButton(LocaleController.getString(R.string.Delete), (dialog, which) -> {
+                            org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).deletePermanently(msgToDelete.getDialogId(), msgToDelete.getId());
+                            ArrayList<Integer> ids = new ArrayList<>();
+                            ids.add(msgToDelete.getId());
+                            processDeletedMessages(ids, msgToDelete.getDialogId() < 0 ? -msgToDelete.getDialogId() : 0, false, true);
+                        })
+                        .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                        .show();
+                }
                 break;
             }
             case OPTION_FORWARD: {
@@ -47117,6 +47215,19 @@ public class ChatActivity extends BaseFragment implements
             items.add(getString(R.string.WelcomeMessageRevert));
             options.add(OPTION_WELCOME_REVERT);
             icons.add(R.drawable.outline_revert_24);
+        }
+
+        if (selectedObject != null) {
+            if (org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).hasEdits(selectedObject.getDialogId(), selectedObject.getId())) {
+                items.add("История правок");
+                options.add(OPTION_NEATGRAM_EDIT_HISTORY);
+                icons.add(R.drawable.msg_edit);
+            }
+            if (org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).isMessageDeleted(selectedObject.getDialogId(), selectedObject.getId())) {
+                items.add("Удалить навсегда");
+                options.add(OPTION_NEATGRAM_DELETE_PERMANENTLY);
+                icons.add(R.drawable.ic_neatgram_delete_forever);
+            }
         }
     }
 

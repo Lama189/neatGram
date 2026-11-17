@@ -1433,10 +1433,24 @@ public class FileLoader extends BaseController {
         if (documentId != 0) {
             String path = getInstance(UserConfig.selectedAccount).getFileDatabase().getPath(documentId, dcId, type, useFileDatabaseQueue);
             if (path != null) {
-                return new File(path);
+                File file = new File(path);
+                if (!file.exists()) {
+                    File fallback = org.telegram.neatgram.history.NeatGramHistoryController.getMediaFallbackFile(file.getName());
+                    if (fallback != null && fallback.exists()) {
+                        return fallback;
+                    }
+                }
+                return file;
             }
         }
-        return new File(dir, getAttachFileName(attach, ext));
+        File file = new File(dir, getAttachFileName(attach, ext));
+        if (!file.exists()) {
+            File fallback = org.telegram.neatgram.history.NeatGramHistoryController.getMediaFallbackFile(file.getName());
+            if (fallback != null && fallback.exists()) {
+                return fallback;
+            }
+        }
+        return file;
     }
 
     public FilePathDatabase getFileDatabase() {

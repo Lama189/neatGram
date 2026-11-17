@@ -1650,6 +1650,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
     private float drawTimeX;
     private float drawTimeY;
+    private boolean isNeatGramDeleted;
+    private float deletedRevealProgress = 1f;
+    private ValueAnimator deletedRevealAnimator;
     public StaticLayout timeLayout;
     public int timeWidth;
     int timeTextWidth;
@@ -5825,6 +5828,11 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
 
+        if (deletedRevealAnimator != null) {
+            deletedRevealAnimator.cancel();
+            deletedRevealAnimator = null;
+        }
+
         if (observersGroup != null) {
             observersGroup.removeAllObservers();
             observersGroup = null;
@@ -6272,6 +6280,21 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             if (currentMessageObject.isSavedFiltered && messageObject.isSavedFiltered || isSideMenued) {
                 messageObject.stableId = oldStableId;
             }
+        }
+        if (messageObject != null && org.telegram.neatgram.config.NeatGramConfig.isSaveDeletedMessages(currentAccount) &&
+                org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).isMessageDeleted(messageObject)) {
+            isNeatGramDeleted = true;
+        } else {
+            isNeatGramDeleted = false;
+        }
+        if (deletedRevealAnimator != null) {
+            deletedRevealAnimator.cancel();
+            deletedRevealAnimator = null;
+        }
+        deletedRevealProgress = 1f;
+        setAlpha(1.0f);
+        if (currentBackgroundDrawable != null) {
+            currentBackgroundDrawable.setAlpha(255);
         }
         accessibilityText = null;
         if (drawCommentButton || useTranscribeButton || drawSideButton == 3 && !((hasDiscussion && messageObject.isLinkedToChat(linkedChatId) || isRepliesChat) && (currentPosition == null || currentPosition.siblingHeights == null && (currentPosition.flags & MessageObject.POSITION_FLAG_BOTTOM) != 0 || currentPosition.siblingHeights != null && (currentPosition.flags & MessageObject.POSITION_FLAG_TOP) == 0))) {
@@ -11899,6 +11922,33 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
     }
 
+    public void refreshMessageObject(MessageObject messageObject) {
+        setMessageObject(messageObject, getCurrentMessagesGroup(), isPinnedBottom(), isPinnedTop(), isFirstInChat(), isLastInChatList());
+    }
+
+    public void animateDeletedReveal() {
+        if (deletedRevealAnimator != null) {
+            deletedRevealAnimator.cancel();
+        }
+        deletedRevealProgress = 0f;
+        deletedRevealAnimator = ValueAnimator.ofFloat(0f, 1f);
+        deletedRevealAnimator.setDuration(220);
+        deletedRevealAnimator.setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
+        deletedRevealAnimator.addUpdateListener(animator -> {
+            deletedRevealProgress = (float) animator.getAnimatedValue();
+            invalidate();
+        });
+        deletedRevealAnimator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                deletedRevealProgress = 1f;
+                deletedRevealAnimator = null;
+                invalidate();
+            }
+        });
+        deletedRevealAnimator.start();
+    }
+
     private boolean frozen;
     public void freezeCell(boolean freeze) {
         this.frozen = freeze;
@@ -15796,6 +15846,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         } else {
             signWidth = 0;
         }
+        if (org.telegram.neatgram.config.NeatGramConfig.isSaveDeletedMessages(currentAccount) &&
+                org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).isMessageDeleted(messageObject)) {
+            timeWidth += dp(16);
+        }
     }
 
     protected boolean shouldDrawSelectionOverlay() {
@@ -17926,6 +17980,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             if (fromParent) {
                 alphaInternal *= getAlpha();
             }
+            boolean dimBubble = isNeatGramDeleted && org.telegram.neatgram.config.NeatGramConfig.isDimDeletedMessages(currentAccount);
+            int baseAlpha = dimBubble ? (int) (255 - (255 - 140) * deletedRevealProgress) : 255;
+            int bgAlpha = (int) (baseAlpha * alphaInternal);
             if (hasSelectionOverlay()) {
 //                if ((isPressed() && isCheckPressed || !isCheckPressed && isPressed) && !textIsSelectionMode()) {
 //                    currentSelectedBackgroundAlpha = 1f;
@@ -17933,28 +17990,34 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 //                    currentBackgroundSelectedDrawable.drawCached(canvas, backgroundCacheParams);
 //                } else {
                 currentSelectedBackgroundAlpha = 0;
-                currentBackgroundDrawable.setAlpha((int) (255 * alphaInternal));
+                currentBackgroundDrawable.setAlpha(bgAlpha);
                 currentBackgroundDrawable.drawCached(canvas, backgroundCacheParams);
+                currentBackgroundDrawable.setAlpha(255);
 //                }
                 if (currentBackgroundShadowDrawable != null && currentPosition == null) {
-                    currentBackgroundShadowDrawable.setAlpha((int) (255 * alphaInternal));
+                    currentBackgroundShadowDrawable.setAlpha(bgAlpha);
                     currentBackgroundShadowDrawable.draw(canvas);
+                    currentBackgroundShadowDrawable.setAlpha(255);
                 }
             } else {
                 if (isHighlightedAnimated) {
-                    currentBackgroundDrawable.setAlpha((int) (255 * alphaInternal));
+                    currentBackgroundDrawable.setAlpha(bgAlpha);
                     currentBackgroundDrawable.drawCached(canvas, backgroundCacheParams);
+                    currentBackgroundDrawable.setAlpha(255);
                     currentSelectedBackgroundAlpha = getHighlightAlpha();
                     if (currentPosition == null) {
-                        currentBackgroundSelectedDrawable.setAlpha((int) (alphaInternal * currentSelectedBackgroundAlpha * 255));
+                        currentBackgroundSelectedDrawable.setAlpha((int) (alphaInternal * currentSelectedBackgroundAlpha * baseAlpha));
                         currentBackgroundSelectedDrawable.drawCached(canvas, backgroundCacheParams);
+                        currentBackgroundSelectedDrawable.setAlpha(255);
                     }
                 } else if (selectedBackgroundProgress != 0 && (currentMessageObject == null || !currentMessageObject.preview) && !(currentMessagesGroup != null && currentMessagesGroup.isDocuments)) {
-                    currentBackgroundDrawable.setAlpha((int) (255 * alphaInternal));
+                    currentBackgroundDrawable.setAlpha(bgAlpha);
                     currentBackgroundDrawable.drawCached(canvas, backgroundCacheParams);
+                    currentBackgroundDrawable.setAlpha(255);
                     currentSelectedBackgroundAlpha = selectedBackgroundProgress;
-                    currentBackgroundSelectedDrawable.setAlpha((int) (currentSelectedBackgroundAlpha * alphaInternal * 255));
+                    currentBackgroundSelectedDrawable.setAlpha((int) (currentSelectedBackgroundAlpha * alphaInternal * baseAlpha));
                     currentBackgroundSelectedDrawable.drawCached(canvas, backgroundCacheParams);
+                    currentBackgroundSelectedDrawable.setAlpha(255);
                     if (currentBackgroundDrawable.getGradientShader() == null) {
                         currentBackgroundShadowDrawable = null;
                     }
@@ -17965,20 +18028,23 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 //                            canvas.clipRect(0, 0, getMeasuredWidth(), getMeasuredHeight());
                         }
                         currentSelectedBackgroundAlpha = 1f;
-                        currentBackgroundSelectedDrawable.setAlpha((int) (255 * alphaInternal));
+                        currentBackgroundSelectedDrawable.setAlpha(bgAlpha);
                         currentBackgroundSelectedDrawable.drawCached(canvas, backgroundCacheParams);
+                        currentBackgroundSelectedDrawable.setAlpha(255);
                         if (currentPosition != null) {
                             canvas.restore();
                         }
                     } else {
                         currentSelectedBackgroundAlpha = 0;
-                        currentBackgroundDrawable.setAlpha((int) (255 * alphaInternal));
+                        currentBackgroundDrawable.setAlpha(bgAlpha);
                         currentBackgroundDrawable.drawCached(canvas, backgroundCacheParams);
+                        currentBackgroundDrawable.setAlpha(255);
                     }
                 }
                 if (currentBackgroundShadowDrawable != null && currentPosition == null) {
-                    currentBackgroundShadowDrawable.setAlpha((int) (255 * alphaInternal));
+                    currentBackgroundShadowDrawable.setAlpha(bgAlpha);
                     currentBackgroundShadowDrawable.draw(canvas);
+                    currentBackgroundShadowDrawable.setAlpha(255);
                 }
 
                 if (transitionParams.changePinnedBottomProgress != 1f && currentPosition == null) {
@@ -19181,14 +19247,16 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (currentBackgroundDrawable != null) {
             currentBackgroundDrawable.setTop(keyboardHeight, w, h, (int) parentViewTopOffset, blurredViewTopOffset, blurredViewBottomOffset, pinnedTop, pinnedBottom);
             currentBackgroundDrawable.setBotButtonsBottom(hasInlineBotButtons());
+            boolean dimBubble = isNeatGramDeleted && org.telegram.neatgram.config.NeatGramConfig.isDimDeletedMessages(currentAccount);
+            int baseAlpha = dimBubble ? (int) (255 - (255 - 140) * deletedRevealProgress) : 255;
             Drawable currentBackgroundShadowDrawable = currentBackgroundDrawable.getShadowDrawable();
             if (currentBackgroundShadowDrawable != null) {
-                currentBackgroundShadowDrawable.setAlpha((int) (getAlpha() * 255));
+                currentBackgroundShadowDrawable.setAlpha((int) (getAlpha() * baseAlpha));
                 currentBackgroundShadowDrawable.setBounds(left, top, right, bottom);
                 currentBackgroundShadowDrawable.draw(canvas);
                 currentBackgroundShadowDrawable.setAlpha(255);
             }
-            currentBackgroundDrawable.setAlpha((int) (getAlpha() * 255));
+            currentBackgroundDrawable.setAlpha((int) (getAlpha() * baseAlpha));
             currentBackgroundDrawable.setBounds(left, top, right, bottom);
             currentBackgroundDrawable.drawCached(canvas, backgroundCacheParams);
             currentBackgroundDrawable.setAlpha(255);
@@ -21571,12 +21639,32 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 if (drawClock && fromParent && getParent() != null) {
                     ((View) getParent()).invalidate();
                 }
+            } else if (isNeatGramDeleted) {
+                additionalX += dp(16);
             }
 
             canvas.save();
             canvas.translate(drawTimeX = timeTitleTimeX + additionalX, drawTimeY = timeY - dp(7.3f) - timeLayout.getHeight());
             SpoilerEffect.layoutDrawMaybe(timeLayout, canvas);
             canvas.restore();
+
+            if (isNeatGramDeleted) {
+                Drawable icon = org.telegram.neatgram.history.NeatGramHistoryController.getDeletedIcon(currentAccount);
+                if (icon != null) {
+                    int customColor = org.telegram.neatgram.config.NeatGramConfig.getDeletedIconColor(currentAccount);
+                    int iconColor = customColor != 0 ? customColor : Theme.chat_timePaint.getColor();
+                    icon.setColorFilter(new android.graphics.PorterDuffColorFilter(iconColor, android.graphics.PorterDuff.Mode.SRC_IN));
+                    int iconAlpha = (int) (255 * deletedRevealProgress);
+                    icon.setAlpha(iconAlpha);
+                    int iconSize = dp(12);
+                    int iconMargin = dp(4);
+                    int iconLeft = (int) (drawTimeX - iconSize - iconMargin);
+                    int iconTop = (int) (drawTimeY + (timeLayout.getHeight() - iconSize) / 2f);
+                    icon.setBounds(iconLeft, iconTop, iconLeft + iconSize, iconTop + iconSize);
+                    icon.draw(canvas);
+                    icon.setAlpha(255);
+                }
+            }
             Theme.chat_timePaint.setAlpha(255);
         } else {
             if (currentMessageObject.isSponsored()) {
@@ -21641,12 +21729,16 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 if (drawClock && fromParent && getParent() != null) {
                     ((View) getParent()).invalidate();
                 }
+            } else if (isNeatGramDeleted) {
+                additionalX += dp(16);
             }
 
+            drawTimeX = timeTitleTimeX + additionalX;
+            drawTimeY = layoutHeight - dp(pinnedBottom || pinnedTop ? 7.5f : 6.5f) - timeLayout.getHeight() + timeYOffset;
             canvas.save();
             if (transitionParams.animateEditedEnter && transitionParams.animateChangeProgress != 1f) {
                 if (transitionParams.animateEditedLayout != null) {
-                    canvas.translate(timeTitleTimeX + additionalX, layoutHeight - dp(pinnedBottom || pinnedTop ? 7.5f : 6.5f) - timeLayout.getHeight() + timeYOffset);
+                    canvas.translate(drawTimeX, drawTimeY);
                     int oldAlpha = Theme.chat_timePaint.getAlpha();
                     Theme.chat_timePaint.setAlpha((int) (oldAlpha * transitionParams.animateChangeProgress));
                     transitionParams.animateEditedLayout.draw(canvas);
@@ -21655,21 +21747,39 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 } else {
                     int oldAlpha = Theme.chat_timePaint.getAlpha();
                     canvas.save();
-                    canvas.translate(transitionParams.animateFromTimeX + additionalX, layoutHeight - dp(pinnedBottom || pinnedTop ? 7.5f : 6.5f) - timeLayout.getHeight() + timeYOffset);
+                    canvas.translate(transitionParams.animateFromTimeX + additionalX, drawTimeY);
                     Theme.chat_timePaint.setAlpha((int) (oldAlpha * (1f - transitionParams.animateChangeProgress)));
                     SpoilerEffect.layoutDrawMaybe(transitionParams.animateTimeLayout, canvas);
                     canvas.restore();
 
-                    canvas.translate(timeTitleTimeX + additionalX, layoutHeight - dp(pinnedBottom || pinnedTop ? 7.5f : 6.5f) - timeLayout.getHeight() + timeYOffset);
+                    canvas.translate(drawTimeX, drawTimeY);
                     Theme.chat_timePaint.setAlpha((int) (oldAlpha * (transitionParams.animateChangeProgress)));
                     SpoilerEffect.layoutDrawMaybe(timeLayout, canvas);
                     Theme.chat_timePaint.setAlpha(oldAlpha);
                 }
             } else {
-                canvas.translate(drawTimeX = timeTitleTimeX + additionalX, drawTimeY = layoutHeight - dp(pinnedBottom || pinnedTop ? 7.5f : 6.5f) - timeLayout.getHeight() + timeYOffset);
+                canvas.translate(drawTimeX, drawTimeY);
                 SpoilerEffect.layoutDrawMaybe(timeLayout, canvas);
             }
             canvas.restore();
+
+            if (isNeatGramDeleted) {
+                Drawable icon = org.telegram.neatgram.history.NeatGramHistoryController.getDeletedIcon(currentAccount);
+                if (icon != null) {
+                    int customColor = org.telegram.neatgram.config.NeatGramConfig.getDeletedIconColor(currentAccount);
+                    int iconColor = customColor != 0 ? customColor : Theme.chat_timePaint.getColor();
+                    icon.setColorFilter(new android.graphics.PorterDuffColorFilter(iconColor, android.graphics.PorterDuff.Mode.SRC_IN));
+                    int iconAlpha = (int) (255 * deletedRevealProgress);
+                    icon.setAlpha(iconAlpha);
+                    int iconSize = dp(12);
+                    int iconMargin = dp(4);
+                    int iconLeft = (int) (drawTimeX - iconSize - iconMargin);
+                    int iconTop = (int) (drawTimeY + (timeLayout.getHeight() - iconSize) / 2f);
+                    icon.setBounds(iconLeft, iconTop, iconLeft + iconSize, iconTop + iconSize);
+                    icon.draw(canvas);
+                    icon.setAlpha(255);
+                }
+            }
         }
 
         if (currentMessageObject.isOutOwner()) {

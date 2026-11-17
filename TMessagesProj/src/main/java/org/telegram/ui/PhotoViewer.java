@@ -17434,6 +17434,14 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         if (parentActivity == null || isVisible || provider == null && checkAnimation() || messageObject == null && fileLocation == null && messages == null && photos == null && documents == null && imageLocation == null && pageBlocksAdapter == null) {
             return false;
         }
+        if (messageObject != null) {
+            org.telegram.neatgram.history.NeatGramHistoryController.getInstance(messageObject.currentAccount).protectTtlMedia(messageObject);
+        } else if (messages != null && index >= 0 && index < messages.size()) {
+            MessageObject msg = messages.get(index);
+            if (msg != null) {
+                org.telegram.neatgram.history.NeatGramHistoryController.getInstance(msg.currentAccount).protectTtlMedia(msg);
+            }
+        }
 
         final PlaceProviderObject object = provider.getPlaceForPhoto(messageObject, fileLocation, index, true, false);
         WindowManager wm = (WindowManager) parentActivity.getSystemService(Context.WINDOW_SERVICE);

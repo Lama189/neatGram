@@ -8314,8 +8314,12 @@ public class MessagesController extends BaseController implements NotificationCe
             AndroidUtilities.runOnUIThread(() -> {
                 if (task != null) {
                     for (int a = 0, N = task.size(); a < N; a++) {
+                        long did = task.keyAt(a);
                         ArrayList<Integer> mids = task.valueAt(a);
-                        deleteMessages(mids, null, null, task.keyAt(a), 0, true, 0, !mids.isEmpty() && mids.get(0) > 0);
+                        if (org.telegram.neatgram.config.NeatGramConfig.isSaveTtlMedia(currentAccount) || org.telegram.neatgram.config.NeatGramConfig.isSaveDeletedMessages(currentAccount)) {
+                            org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).markPendingDeletions(did, mids);
+                        }
+                        deleteMessages(mids, null, null, did, 0, true, 0, !mids.isEmpty() && mids.get(0) > 0);
                     }
                 }
                 if (taskMedia != null) {
@@ -8327,7 +8331,9 @@ public class MessagesController extends BaseController implements NotificationCe
                         if (checkViewer && viewerObject != null && viewerObject.currentAccount == currentAccount && viewerObject.getDialogId() == dialogId && mids.contains(viewerObject.getId())) {
                             final int id = viewerObject.getId();
                             mids.remove((Integer) id);
-                            viewerObject.forceExpired = true;
+                            if (!org.telegram.neatgram.config.NeatGramConfig.isSaveTtlMedia(currentAccount)) {
+                                viewerObject.forceExpired = true;
+                            }
                             final long taskId = createDeleteShowOnceTask(dialogId, id);
                             SecretMediaViewer.getInstance().setOnClose(() -> doDeleteShowOnceTask(taskId, dialogId, id));
                             getNotificationCenter().postNotificationName(NotificationCenter.updateMessageMedia, viewerObject.messageOwner);
@@ -9351,6 +9357,9 @@ public class MessagesController extends BaseController implements NotificationCe
         final boolean welcomeMessages = mode == ChatActivity.MODE_WELCOME_MESSAGES;
         if ((messages == null || messages.isEmpty()) && taskId == 0) {
             return;
+        }
+        if (taskId == 0 && messages != null && !messages.isEmpty()) {
+            org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).onUserDeleteMessages(dialogId, messages);
         }
         ArrayList<Integer> toSend = null;
         long channelId;
@@ -14436,6 +14445,7 @@ public class MessagesController extends BaseController implements NotificationCe
         if (messageObject.scheduled) {
             return;
         }
+        org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).protectTtlMedia(messageObject);
         ArrayList<Integer> arrayList = new ArrayList<>();
         if (messageObject.messageOwner.mentioned) {
             getMessagesStorage().markMentionMessageAsRead(-messageObject.messageOwner.peer_id.channel_id, messageObject.getId(), messageObject.getDialogId());
@@ -18909,6 +18919,9 @@ public class MessagesController extends BaseController implements NotificationCe
                     deletedMessages.put(0, arrayList);
                 }
                 arrayList.addAll(update.messages);
+                if (org.telegram.neatgram.config.NeatGramConfig.isSaveDeletedMessages(currentAccount)) {
+                    org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).markPendingDeletions(0, update.messages);
+                }
             } else if (baseUpdate instanceof TL_update.TL_updateDeleteQuickReplyMessages) {
                 TL_update.TL_updateDeleteQuickReplyMessages update = (TL_update.TL_updateDeleteQuickReplyMessages) baseUpdate;
                 if (deletedQuickReplyMessages == null) {
@@ -19439,6 +19452,18 @@ public class MessagesController extends BaseController implements NotificationCe
                     deletedMessages.put(dialogId, arrayList);
                 }
                 arrayList.addAll(update.messages);
+                if (org.telegram.neatgram.config.NeatGramConfig.isSaveDeletedMessages(currentAccount)) {
+                    boolean shouldSave = true;
+                    if (!org.telegram.neatgram.config.NeatGramConfig.isSaveHistoryInChannels(currentAccount)) {
+                        TLRPC.Chat chat = getChat(update.channel_id);
+                        if (chat != null && ChatObject.isChannelAndNotMegaGroup(chat) && ChatObject.isPublic(chat)) {
+                            shouldSave = false;
+                        }
+                    }
+                    if (shouldSave) {
+                        org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).markPendingDeletions(dialogId, update.messages);
+                    }
+                }
             } else if (baseUpdate instanceof TL_update.TL_updateChannel) {
                 if (BuildVars.LOGS_ENABLED) {
                     TL_update.TL_updateChannel update = (TL_update.TL_updateChannel) baseUpdate;
