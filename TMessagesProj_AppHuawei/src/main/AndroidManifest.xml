@@ -10,7 +10,11 @@
         <package android:name="com.huawei.maps.app"/>
     </queries>
 
-    <application android:name="org.telegram.messenger.HuaweiApplicationLoader" tools:replace="name">
+    <application
+        android:name="org.telegram.messenger.HuaweiApplicationLoader"
+        android:icon="@mipmap/ic_neatgram"
+        android:roundIcon="@mipmap/ic_neatgram_round"
+        tools:replace="name,android:icon,android:roundIcon">
         <service
             android:name="org.telegram.messenger.GoogleVoiceClientService"
             android:exported="true"
