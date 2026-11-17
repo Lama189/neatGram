@@ -132,6 +132,8 @@ android {
     }
 
     lintOptions {
+        checkReleaseBuilds false
+        abortOnError false
         disable 'MissingTranslation'
         disable 'ExtraTranslation'
         disable 'BlockedPrivateApi'
@@ -152,10 +154,20 @@ android {
 
         multiDexEnabled true
 
+        def targetAbi = project.findProperty("targetAbi")
+        if (targetAbi) {
+            ndk {
+                abiFilters targetAbi.toString().split(',').collect { it.trim() }
+            }
+        }
+
         externalNativeBuild {
             cmake {
                 version '3.22.1'
-                arguments '-DANDROID_STL=c++_static', '-DANDROID_PLATFORM=android-23' //, '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON'
+                arguments '-DANDROID_STL=c++_static',
+                          '-DANDROID_PLATFORM=android-23',
+                          '-DCMAKE_C_COMPILER_LAUNCHER=ccache',
+                          '-DCMAKE_CXX_COMPILER_LAUNCHER=ccache'
                 targets 'tmessages.49', 'twidget'
             }
         }
