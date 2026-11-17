@@ -25775,6 +25775,9 @@ public class ChatActivity extends BaseFragment implements
     private Pattern sponsoredUrlPattern;
     private MessageObject botSponsoredMessage;
     private void addSponsoredMessages(boolean animated) {
+        if (org.telegram.neatgram.config.NeatGramConfig.isDisableAds(currentAccount)) {
+            return;
+        }
         if (sponsoredMessagesAdded || chatMode != 0 || !ChatObject.isChannel(currentChat) && !UserObject.isBot(currentUser) || !forwardEndReached[0] || getUserConfig().isPremium() && getMessagesController().isSponsoredDisabled() || isReport()) {
             return;
         }
@@ -25828,6 +25831,9 @@ public class ChatActivity extends BaseFragment implements
     }
 
     public void removeFromSponsored(MessageObject message) {
+        if (org.telegram.neatgram.config.NeatGramConfig.isDisableAds(currentAccount)) {
+            return;
+        }
         if (message == botSponsoredMessage) {
             botSponsoredMessage = null;
             updateTopPanel(true);
@@ -27115,6 +27121,9 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private int getSponsoredMessagesCount() {
+        if (org.telegram.neatgram.config.NeatGramConfig.isDisableAds(currentAccount)) {
+            return 0;
+        }
         int sponsoredMessagesCount = 0;
         while (sponsoredMessagesCount < messages.size()) {
             if (!messages.get(sponsoredMessagesCount).isSponsored()) {
@@ -37554,7 +37563,7 @@ public class ChatActivity extends BaseFragment implements
     }
 
     public void logSponsoredClicked(MessageObject messageObject, boolean media, boolean fullscreen) {
-        if (messageObject == null || !messageObject.isSponsored()) {
+        if (org.telegram.neatgram.config.NeatGramConfig.isDisableAds(currentAccount) || messageObject == null || !messageObject.isSponsored()) {
             return;
         }
         TLRPC.TL_messages_clickSponsoredMessage req = new TLRPC.TL_messages_clickSponsoredMessage();
@@ -37792,7 +37801,7 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void markSponsoredAsRead(MessageObject object) {
-        if (object == null) {
+        if (org.telegram.neatgram.config.NeatGramConfig.isDisableAds(currentAccount) || object == null) {
             return;
         }
         if (!object.isSponsored() || object.viewsReloaded) {

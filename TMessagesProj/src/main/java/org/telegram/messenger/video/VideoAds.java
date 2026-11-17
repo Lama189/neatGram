@@ -180,6 +180,9 @@ public static VideoAds make(
         this.bulletinFactory = bulletinFactory;
         this.lastTime = System.currentTimeMillis();
         this.first = true;
+        if (org.telegram.neatgram.config.NeatGramConfig.isDisableAds(currentAccount)) {
+            return;
+        }
         if (cache.loaded) {
             start_delay = cache.startDelay;
             between_delay = cache.betweenDelay;
@@ -196,7 +199,7 @@ public static VideoAds make(
     private void load() {
         if (loading || loaded) return;
 
-        if (UserConfig.getInstance(currentAccount).isPremium() && MessagesController.getInstance(currentAccount).isSponsoredDisabled()) {
+        if (org.telegram.neatgram.config.NeatGramConfig.isDisableAds(currentAccount) || UserConfig.getInstance(currentAccount).isPremium() && MessagesController.getInstance(currentAccount).isSponsoredDisabled()) {
             return;
         }
 
@@ -234,7 +237,7 @@ public static VideoAds make(
 
     private void schedule() {
         AndroidUtilities.cancelRunOnUIThread(showRunnable);
-        if (!loaded || ads.isEmpty()) return;
+        if (org.telegram.neatgram.config.NeatGramConfig.isDisableAds(currentAccount) || !loaded || ads.isEmpty()) return;
         final int delay = first ? start_delay : between_delay;
         final long timePassed = System.currentTimeMillis() - lastTime;
         AndroidUtilities.runOnUIThread(showRunnable, Math.max(0, delay * 1000L - timePassed));
@@ -265,7 +268,7 @@ public static VideoAds make(
     private float currentMenuTranslationY;
 
     private void show() {
-        if (ads.isEmpty()) return;
+        if (org.telegram.neatgram.config.NeatGramConfig.isDisableAds(currentAccount) || ads.isEmpty()) return;
         final TLRPC.TL_sponsoredMessage ad = ads.get(0);
         final long showTime = System.currentTimeMillis() - currentBulletinPassedTime;
         bulletinShowTime = showTime;
@@ -871,7 +874,7 @@ public static VideoAds make(
     }
 
     public void logSponsoredShown(TLRPC.TL_sponsoredMessage ad) {
-        if (ad == null) return;
+        if (org.telegram.neatgram.config.NeatGramConfig.isDisableAds(currentAccount) || ad == null) return;
         final TLRPC.TL_messages_viewSponsoredMessage req = new TLRPC.TL_messages_viewSponsoredMessage();
         req.random_id = ad.random_id;
         if (!BuildVars.DEBUG_PRIVATE_VERSION) {
@@ -880,7 +883,7 @@ public static VideoAds make(
     }
 
     public void logSponsoredClicked(TLRPC.TL_sponsoredMessage ad) {
-        if (ad == null) return;
+        if (org.telegram.neatgram.config.NeatGramConfig.isDisableAds(currentAccount) || ad == null) return;
         final TLRPC.TL_messages_clickSponsoredMessage req = new TLRPC.TL_messages_clickSponsoredMessage();
         req.random_id = ad.random_id;
         req.media = false;

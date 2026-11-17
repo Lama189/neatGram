@@ -1132,7 +1132,7 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
                 ConnectionsManager.getInstance(currentAccount).cancelRequest(sponsoredReqId, true);
                 sponsoredReqId = 0;
             }
-            if (query == null || query.length() < 4 || UserConfig.getInstance(currentAccount).isPremium() && MessagesController.getInstance(currentAccount).isSponsoredDisabled()) {
+            if (query == null || query.length() < 4 || org.telegram.neatgram.config.NeatGramConfig.isDisableAds(currentAccount) || UserConfig.getInstance(currentAccount).isPremium() && MessagesController.getInstance(currentAccount).isSponsoredDisabled()) {
                 sponsoredQuery = null;
             } else {
                 final TLRPC.TL_contacts_getSponsoredPeers req = new TLRPC.TL_contacts_getSponsoredPeers();
@@ -2550,7 +2550,7 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
                 break;
             }
         }
-        if (sent) return;
+        if (sent || org.telegram.neatgram.config.NeatGramConfig.isDisableAds(currentAccount)) return;
 
         seenSponsoredPeers.add(sponsoredPeer.random_id);
         TLRPC.TL_messages_viewSponsoredMessage req = new TLRPC.TL_messages_viewSponsoredMessage();
@@ -2559,7 +2559,7 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
     }
 
     public void clickedSponsoredPeer(TLRPC.TL_sponsoredPeer sponsoredPeer) {
-        if (sponsoredPeer == null) return;
+        if (org.telegram.neatgram.config.NeatGramConfig.isDisableAds(currentAccount) || sponsoredPeer == null) return;
         TLRPC.TL_messages_clickSponsoredMessage req = new TLRPC.TL_messages_clickSponsoredMessage();
         req.random_id = sponsoredPeer.random_id;
         ConnectionsManager.getInstance(currentAccount).sendRequest(req, null);

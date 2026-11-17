@@ -16,6 +16,7 @@ public class NeatGramConfig {
     private static final String PREFS_NAME = "neatgramconfig";
     private static final String KEY_PREMIUM_DOWNLOAD_BOOST = "premiumDownloadBoost";
     private static final String KEY_RAM_PILL_ENABLED = "ramPillEnabled";
+    private static final String KEY_DISABLE_ADS = "disableAds";
 
     private static final Object sync = new Object();
     private static volatile boolean initialized;
@@ -23,6 +24,7 @@ public class NeatGramConfig {
     // Global toggle (defaults to true)
     private static volatile boolean premiumDownloadBoost = true;
     private static volatile boolean ramPillEnabled = true;
+    private static volatile boolean disableAds = true;
 
     // Per-account overrides (defaults to true)
     private static final boolean[] premiumDownloadBoostAccounts = new boolean[UserConfig.MAX_ACCOUNT_COUNT];
@@ -49,6 +51,7 @@ public class NeatGramConfig {
                     premiumDownloadBoostAccounts[i] = preferences.getBoolean(KEY_PREMIUM_DOWNLOAD_BOOST + "_" + i, premiumDownloadBoost);
                 }
                 ramPillEnabled = preferences.getBoolean(KEY_RAM_PILL_ENABLED, true);
+                disableAds = preferences.getBoolean(KEY_DISABLE_ADS, true);
                 initialized = true;
             }
         }
@@ -140,6 +143,37 @@ public class NeatGramConfig {
             if (context != null) {
                 SharedPreferences.Editor editor = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit();
                 editor.putBoolean(KEY_RAM_PILL_ENABLED, enabled);
+                editor.apply();
+            }
+        }
+    }
+
+    /**
+     * Checks if all ads (sponsored messages in channels, global search, and video player) are disabled globally.
+     */
+    public static boolean isDisableAds() {
+        ensureLoaded();
+        return disableAds;
+    }
+
+    /**
+     * Checks if ads are disabled for the specified account.
+     */
+    public static boolean isDisableAds(int currentAccount) {
+        return isDisableAds();
+    }
+
+    /**
+     * Updates ads disabled state globally and persists to SharedPreferences.
+     */
+    public static void setDisableAds(boolean disabled) {
+        ensureLoaded();
+        synchronized (sync) {
+            disableAds = disabled;
+            Context context = ApplicationLoader.applicationContext;
+            if (context != null) {
+                SharedPreferences.Editor editor = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit();
+                editor.putBoolean(KEY_DISABLE_ADS, disabled);
                 editor.apply();
             }
         }
