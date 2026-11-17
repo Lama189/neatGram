@@ -10563,11 +10563,11 @@ public class MessagesController extends BaseController implements NotificationCe
                         }
 
                         TL_account.updateStatus req = new TL_account.updateStatus();
-                        req.offline = false;
+                        req.offline = org.telegram.neatgram.ghost.NeatGramGhostController.getInstance(currentAccount).shouldBlockSendOnline();
                         statusRequest = getConnectionsManager().sendRequest(req, (response, error) -> {
                             if (error == null) {
                                 lastStatusUpdateTime = System.currentTimeMillis();
-                                offlineSent = false;
+                                offlineSent = req.offline;
                                 statusSettingState = 0;
                             } else {
                                 if (lastStatusUpdateTime != 0) {
@@ -11412,6 +11412,9 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public boolean sendTyping(long dialogId, long threadMsgId, int action, String emojicon, int classGuid) {
+        if (org.telegram.neatgram.ghost.NeatGramGhostController.getInstance(currentAccount).shouldBlockTyping()) {
+            return false;
+        }
         if (action < 0 || action >= sendingTypings.length || dialogId == 0) {
             return false;
         }
@@ -14443,7 +14446,7 @@ public class MessagesController extends BaseController implements NotificationCe
         getNotificationCenter().postNotificationName(NotificationCenter.messagesReadContent, dialogId, arrayList);
         if (messageObject.getId() < 0) {
             markMessageAsRead(messageObject.getDialogId(), messageObject.messageOwner.random_id, Integer.MIN_VALUE);
-        } else {
+        } else if (!org.telegram.neatgram.ghost.NeatGramGhostController.getInstance(currentAccount).shouldBlockReadHistory(messageObject.getDialogId())) {
             if (messageObject.messageOwner.peer_id.channel_id != 0) {
                 TLRPC.TL_channels_readMessageContents req = new TLRPC.TL_channels_readMessageContents();
                 req.channel = getInputChannel(messageObject.messageOwner.peer_id.channel_id);
@@ -14593,6 +14596,9 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     private void completeReadTask(ReadTask task) {
+        if (task != null && org.telegram.neatgram.ghost.NeatGramGhostController.getInstance(currentAccount).shouldBlockReadHistory(task.dialogId)) {
+            return;
+        }
         if (task.replyId != 0 && task.monoForumPeerId == 0) {
             TLRPC.TL_messages_readDiscussion req = new TLRPC.TL_messages_readDiscussion();
             req.msg_id = (int) task.replyId;

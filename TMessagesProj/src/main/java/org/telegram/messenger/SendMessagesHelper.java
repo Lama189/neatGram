@@ -3912,6 +3912,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         if (messageObject == null) {
             return 0;
         }
+        org.telegram.neatgram.ghost.NeatGramGhostController.onUserChatAction(currentAccount, messageObject.getDialogId());
         final String key = "poll_" + messageObject.getPollId();
         if (waitingForCallback.containsKey(key)) {
             return 0;
@@ -4002,6 +4003,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         if (messageObject == null || parentFragment == null) {
             return;
         }
+        org.telegram.neatgram.ghost.NeatGramGhostController.onUserChatAction(currentAccount, messageObject.getDialogId());
         TLRPC.TL_messages_sendReaction req = new TLRPC.TL_messages_sendReaction();
         if (messageObject.messageOwner.isThreadMessage && messageObject.messageOwner.fwd_from != null) {
             req.peer = getMessagesController().getInputPeer(messageObject.getFromChatId());
@@ -4071,6 +4073,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         if (messageObject == null || button == null || parentFragment == null) {
             return;
         }
+        org.telegram.neatgram.ghost.NeatGramGhostController.onUserChatAction(currentAccount, messageObject.getDialogId());
         final boolean cacheFinal;
         int type;
         if (TLKeyboardHelper.isType(button, TL_keyboard.TL_inlineButtonTypeUrlAuth.class)) {
@@ -4439,6 +4442,12 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
     }
 
     public void sendMessage(SendMessageParams sendMessageParams) {
+        if (sendMessageParams != null) {
+            org.telegram.neatgram.ghost.NeatGramGhostController.onUserChatAction(currentAccount, sendMessageParams.peer);
+            if (org.telegram.neatgram.ghost.NeatGramGhostController.getInstance(currentAccount).shouldUseSchedule() && sendMessageParams.scheduleDate == 0) {
+                sendMessageParams.scheduleDate = getConnectionsManager().getCurrentTime() + 10;
+            }
+        }
         final SendMessageChatArguments sendMessageChatArguments = sendMessageParams.sendMessageChatArguments != null ?
                 sendMessageParams.sendMessageChatArguments : SendMessageChatArguments.EMPTY;
         String message = sendMessageParams.message;
