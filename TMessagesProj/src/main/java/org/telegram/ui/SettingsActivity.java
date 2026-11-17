@@ -138,6 +138,7 @@ import org.telegram.ui.bots.BotBiometry;
 import org.telegram.ui.bots.BotDownloads;
 import org.telegram.ui.QrShare.QrShareActivity;
 import org.telegram.ui.bots.BotLocation;
+import org.telegram.neatgram.config.NeatGramConfig;
 import org.telegram.neatgram.ui.NeatGramSettingsActivity;
 import org.telegram.ui.bots.BotWebViewSheet;
 import org.telegram.ui.bots.SetupEmojiStatusSheet;
@@ -475,6 +476,10 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
                 return;
             }
             presentFragment(new DebugSettingsActivity());
+        });
+        versionView.setOnLongClickListener(v -> {
+            presentFragment(new DebugSettingsActivity());
+            return true;
         });
 
         navigationBar = new View(context);
@@ -1047,28 +1052,17 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
 
     public String getVersionName() {
         try {
-            PackageInfo pInfo = ApplicationLoader.applicationContext.getPackageManager().getPackageInfo(ApplicationLoader.applicationContext.getPackageName(), 0);
-            int code = pInfo.versionCode / 10;
-            String abi = "";
-            switch (pInfo.versionCode % 10) {
-                case 1:
-                case 2:
-                    abi = "store bundled " + Build.CPU_ABI + " " + Build.CPU_ABI2;
-                    break;
-                default:
-                case 9:
-                    if (ApplicationLoader.isStandaloneBuild()) {
-                        abi = "direct " + Build.CPU_ABI + " " + Build.CPU_ABI2;
-                    } else {
-                        abi = "universal " + Build.CPU_ABI + " " + Build.CPU_ABI2;
-                    }
-                    break;
+            Locale locale = LocaleController.getInstance().getCurrentLocale();
+            boolean isRu = locale != null && locale.getLanguage() != null && locale.getLanguage().startsWith("ru");
+            if (isRu) {
+                return "neatGram для Android v" + NeatGramConfig.NEATGRAM_VERSION + "\nby Lama";
+            } else {
+                return "neatGram for Android v" + NeatGramConfig.NEATGRAM_VERSION + "\nby Lama";
             }
-            return formatString(R.string.TelegramVersion, String.format(Locale.US, "v%s (%d)\n%s", pInfo.versionName, code, abi));
         } catch (Exception e) {
             FileLog.e(e);
         }
-        return null;
+        return "neatGram for Android v" + NeatGramConfig.NEATGRAM_VERSION + "\nby Lama";
     }
 
     @Override
