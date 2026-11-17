@@ -157,7 +157,7 @@ android {
         def targetAbi = project.findProperty("targetAbi")
         if (targetAbi) {
             ndk {
-                abiFilters targetAbi.toString().split(',').collect { it.trim() }
+                abiFilters(*targetAbi.toString().split(',').collect { it.trim() })
             }
         }
 
