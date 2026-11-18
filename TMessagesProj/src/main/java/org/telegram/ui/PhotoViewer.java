@@ -18087,6 +18087,9 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
     }
 
     public void closePhoto(boolean animated, boolean fromEditMode) {
+        if (currentMessageObject != null) {
+            org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentMessageObject.currentAccount).protectTtlMedia(currentMessageObject);
+        }
         if (stickerMakerView != null) {
             stickerMakerView.isThanosInProgress = false;
             if (cutOutBtn.isCancelState()) {

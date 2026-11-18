@@ -85,6 +85,7 @@ public class NeatGramHistoryController {
     // Short-lived pending deletions: dialogId -> set of message IDs marked for preservation
     private final ConcurrentHashMap<Long, Set<Integer>> pendingDeletions = new ConcurrentHashMap<>();
     private final Set<Integer> userDeletedMids = ConcurrentHashMap.newKeySet();
+    private static final Set<String> protectedFileNames = ConcurrentHashMap.newKeySet();
 
     private NeatGramHistoryController(int account) {
         this.currentAccount = account;
@@ -370,38 +371,108 @@ public class NeatGramHistoryController {
                     protectMediaFile(attachFile);
                 }
             }
-            File mainFile = FileLoader.getInstance(currentAccount).getPathToMessage(message);
-            if (mainFile != null && mainFile.exists()) {
-                protectMediaFile(mainFile);
-            }
+            File mainCacheFile = FileLoader.getInstance(currentAccount).getPathToMessage(message, true, false);
+            File mainStandardFile = FileLoader.getInstance(currentAccount).getPathToMessage(message, false, false);
+            protectAndSyncFiles(mainCacheFile, mainStandardFile);
+
             TLRPC.Photo photo = MessageObject.getPhoto(message);
             if (photo != null && photo.sizes != null) {
                 for (int a = 0, N = photo.sizes.size(); a < N; a++) {
                     TLRPC.PhotoSize size = photo.sizes.get(a);
-                    File file = FileLoader.getInstance(currentAccount).getPathToAttach(size, true);
-                    if (file != null && file.exists()) {
-                        protectMediaFile(file);
-                    }
+                    if (size == null) continue;
+                    File cacheFile = FileLoader.getInstance(currentAccount).getPathToAttach(size, null, true, false);
+                    File standardFile = FileLoader.getInstance(currentAccount).getPathToAttach(size, null, false, false);
+                    protectAndSyncFiles(cacheFile, standardFile);
                 }
             }
             TLRPC.Document doc = MessageObject.getDocument(message);
             if (doc != null) {
-                File file = FileLoader.getInstance(currentAccount).getPathToAttach(doc, true);
-                if (file != null && file.exists()) {
-                    protectMediaFile(file);
-                }
+                File cacheFile = FileLoader.getInstance(currentAccount).getPathToAttach(doc, null, true, false);
+                File standardFile = FileLoader.getInstance(currentAccount).getPathToAttach(doc, null, false, false);
+                protectAndSyncFiles(cacheFile, standardFile);
                 if (doc.thumbs != null) {
                     for (int a = 0, N = doc.thumbs.size(); a < N; a++) {
                         TLRPC.PhotoSize thumb = doc.thumbs.get(a);
-                        File thumbFile = FileLoader.getInstance(currentAccount).getPathToAttach(thumb, true);
-                        if (thumbFile != null && thumbFile.exists()) {
-                            protectMediaFile(thumbFile);
-                        }
+                        if (thumb == null) continue;
+                        File cacheThumb = FileLoader.getInstance(currentAccount).getPathToAttach(thumb, null, true, false);
+                        File standardThumb = FileLoader.getInstance(currentAccount).getPathToAttach(thumb, null, false, false);
+                        protectAndSyncFiles(cacheThumb, standardThumb);
                     }
                 }
             }
         } catch (Exception e) {
             FileLog.e(e);
+        }
+    }
+
+    public void protectAndSyncFiles(File cacheFile, File standardFile) {
+        File existingSource = null;
+        if (cacheFile != null && cacheFile.exists()) {
+            existingSource = cacheFile;
+        } else if (standardFile != null && standardFile.exists()) {
+            existingSource = standardFile;
+        } else {
+            String name = cacheFile != null ? cacheFile.getName() : (standardFile != null ? standardFile.getName() : null);
+            if (!TextUtils.isEmpty(name)) {
+                File fallback = getMediaFallbackFile(name);
+                if (fallback != null && fallback.exists()) {
+                    existingSource = fallback;
+                }
+            }
+        }
+
+        if (existingSource != null) {
+            protectMediaFile(existingSource);
+            if (standardFile != null && !standardFile.exists()) {
+                duplicateFile(existingSource, standardFile);
+            }
+            if (cacheFile != null && !cacheFile.exists()) {
+                duplicateFile(existingSource, cacheFile);
+            }
+        }
+
+        File encCache = cacheFile != null ? new File(cacheFile.getAbsolutePath() + ".enc") : null;
+        File encStandard = standardFile != null ? new File(standardFile.getAbsolutePath() + ".enc") : null;
+        File existingEnc = null;
+        if (encCache != null && encCache.exists()) {
+            existingEnc = encCache;
+        } else if (encStandard != null && encStandard.exists()) {
+            existingEnc = encStandard;
+        } else {
+            String encName = (cacheFile != null ? cacheFile.getName() : (standardFile != null ? standardFile.getName() : "")) + ".enc";
+            File fallbackEnc = getMediaFallbackFile(encName);
+            if (fallbackEnc != null && fallbackEnc.exists()) {
+                existingEnc = fallbackEnc;
+            }
+        }
+
+        if (existingEnc != null) {
+            protectMediaFile(existingEnc);
+            if (encStandard != null && !encStandard.exists()) {
+                duplicateFile(existingEnc, encStandard);
+            }
+            if (encCache != null && !encCache.exists()) {
+                duplicateFile(existingEnc, encCache);
+            }
+            String baseName = cacheFile != null ? cacheFile.getName() : (standardFile != null ? standardFile.getName() : null);
+            if (!TextUtils.isEmpty(baseName)) {
+                File keyFile = new File(FileLoader.getInternalCacheDir(), baseName + ".enc.key");
+                if (!keyFile.exists()) {
+                    File fallbackKey = getMediaFallbackFile(baseName + ".enc.key");
+                    if (fallbackKey != null && fallbackKey.exists()) {
+                        duplicateFile(fallbackKey, keyFile);
+                    }
+                }
+                if (keyFile.exists()) {
+                    protectMediaFile(keyFile);
+                    if (standardFile != null && !standardFile.exists()) {
+                        decryptEncryptedFile(existingEnc, keyFile, standardFile);
+                    }
+                    if (cacheFile != null && !cacheFile.exists()) {
+                        decryptEncryptedFile(existingEnc, keyFile, cacheFile);
+                    }
+                }
+            }
         }
     }
 
@@ -421,6 +492,7 @@ public class NeatGramHistoryController {
         message.ttl = 0;
         message.destroyTime = 0;
         message.destroyTimeMillis = 0;
+        protectMedia(message);
         long dialogId = MessageObject.getDialogId(message);
         int currentTime = ConnectionsManager.getInstance(currentAccount).getCurrentTime();
         recordDeleted(dialogId, message.id, currentTime);
@@ -448,6 +520,7 @@ public class NeatGramHistoryController {
             newMessage.ttl = 0;
             newMessage.destroyTime = 0;
             newMessage.destroyTimeMillis = 0;
+            protectMedia(newMessage);
             long dialogId = MessageObject.getDialogId(newMessage);
             int currentTime = ConnectionsManager.getInstance(currentAccount).getCurrentTime();
             recordDeleted(dialogId, newMessage.id, currentTime);
@@ -460,6 +533,7 @@ public class NeatGramHistoryController {
         if (db == null || message == null) {
             return;
         }
+        protectMedia(message);
         NativeByteBuffer data = null;
         try {
             message.ttl = 0;
@@ -468,6 +542,7 @@ public class NeatGramHistoryController {
             if (message.media != null) {
                 message.media.ttl_seconds = 0;
             }
+            protectMedia(message);
             data = new NativeByteBuffer(message.getObjectSize());
             message.serializeToStream(data);
             SQLitePreparedStatement state = db.executeFast("UPDATE messages_v2 SET data = ?, ttl = 0 WHERE mid = ? AND uid = ?");
@@ -486,36 +561,261 @@ public class NeatGramHistoryController {
         }
     }
 
+    public static void markFileProtected(String name) {
+        if (!TextUtils.isEmpty(name)) {
+            protectedFileNames.add(name);
+        }
+    }
+
+    public boolean isMediaFileProtected(File file) {
+        if (file == null) {
+            return false;
+        }
+        String path = file.getAbsolutePath();
+        if (path.contains("neatgram_media")) {
+            return true;
+        }
+        if (!NeatGramConfig.isSaveTtlMedia(currentAccount) && !NeatGramConfig.isSaveDeletedMessages(currentAccount)) {
+            return false;
+        }
+        String name = file.getName();
+        if (protectedFileNames.contains(name)) {
+            return true;
+        }
+        File mediaDir = new File(ApplicationLoader.getFilesDirFixed(), "neatgram_media");
+        if (new File(mediaDir, name).exists()) {
+            protectedFileNames.add(name);
+            return true;
+        }
+        if (name.endsWith(".enc")) {
+            String plainName = name.substring(0, name.length() - 4);
+            if (protectedFileNames.contains(plainName) || new File(mediaDir, plainName).exists()) {
+                protectedFileNames.add(name);
+                return true;
+            }
+        }
+        if (name.endsWith(".enc.key")) {
+            String plainName = name.substring(0, name.length() - 8);
+            if (protectedFileNames.contains(plainName) || new File(mediaDir, plainName).exists()) {
+                protectedFileNames.add(name);
+                return true;
+            }
+        }
+        if (name.startsWith("q_")) {
+            String plainName = name.substring(2);
+            if (protectedFileNames.contains(plainName) || new File(mediaDir, plainName).exists()) {
+                protectedFileNames.add(name);
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static void protectMediaFile(File originalFile) {
         if (originalFile == null || !originalFile.exists()) {
             return;
         }
+        markFileProtected(originalFile.getName());
         File mediaDir = new File(ApplicationLoader.getFilesDirFixed(), "neatgram_media");
         if (!mediaDir.exists()) {
             mediaDir.mkdirs();
         }
         File targetFile = new File(mediaDir, originalFile.getName());
-        if (targetFile.exists()) {
-            return;
+        if (!targetFile.exists()) {
+            duplicateFile(originalFile, targetFile);
+        }
+        File encFile = new File(originalFile.getAbsolutePath() + ".enc");
+        if (encFile.exists()) {
+            markFileProtected(encFile.getName());
+            File targetEnc = new File(mediaDir, encFile.getName());
+            if (!targetEnc.exists()) {
+                duplicateFile(encFile, targetEnc);
+            }
+            File keyFile = new File(FileLoader.getInternalCacheDir(), originalFile.getName() + ".enc.key");
+            if (keyFile.exists()) {
+                markFileProtected(keyFile.getName());
+                File targetKey = new File(mediaDir, keyFile.getName());
+                if (!targetKey.exists()) {
+                    duplicateFile(keyFile, targetKey);
+                }
+            }
+        }
+    }
+
+    public static boolean duplicateFile(File src, File dst) {
+        if (src == null || !src.exists() || dst == null) {
+            return false;
+        }
+        if (dst.exists()) {
+            return true;
+        }
+        File parent = dst.getParentFile();
+        if (parent != null && !parent.exists()) {
+            parent.mkdirs();
         }
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                android.system.Os.link(originalFile.getAbsolutePath(), targetFile.getAbsolutePath());
-                return;
+                android.system.Os.link(src.getAbsolutePath(), dst.getAbsolutePath());
+                return true;
             }
         } catch (Throwable ignore) {
             // Fallback to streaming copy on link error (e.g. cross-filesystem)
         }
-        copyFile(originalFile, targetFile);
+        return copyFile(src, dst);
     }
 
-    private static void copyFile(File src, File dst) {
+    private static boolean copyFile(File src, File dst) {
         try (FileChannel inChannel = new FileInputStream(src).getChannel();
              FileChannel outChannel = new FileOutputStream(dst).getChannel()) {
             inChannel.transferTo(0, inChannel.size(), outChannel);
+            return true;
         } catch (Exception e) {
             FileLog.e(e);
+            return false;
         }
+    }
+
+    public static boolean decryptEncryptedFile(File encFile, File keyFile, File targetPlainFile) {
+        if (encFile == null || !encFile.exists() || keyFile == null || !keyFile.exists() || targetPlainFile == null) {
+            return false;
+        }
+        if (targetPlainFile.exists() && targetPlainFile.length() > 0) {
+            return true;
+        }
+        File temp = new File(targetPlainFile.getAbsolutePath() + ".dec.temp");
+        try (org.telegram.messenger.secretmedia.EncryptedFileInputStream in = new org.telegram.messenger.secretmedia.EncryptedFileInputStream(encFile, keyFile);
+             FileOutputStream out = new FileOutputStream(temp)) {
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                out.write(buffer, 0, read);
+            }
+            out.flush();
+            if (temp.renameTo(targetPlainFile)) {
+                return true;
+            } else {
+                return copyFile(temp, targetPlainFile);
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return false;
+        } finally {
+            if (temp.exists()) {
+                temp.delete();
+            }
+        }
+    }
+
+    public void onFileLoaded(File finalFile) {
+        if (finalFile == null || !finalFile.exists()) {
+            return;
+        }
+        protectMediaFile(finalFile);
+        try {
+            File cacheDir = FileLoader.getInstance(currentAccount).getDirectory(FileLoader.MEDIA_DIR_CACHE);
+            if (finalFile.getParentFile() != null && finalFile.getParentFile().equals(cacheDir)) {
+                String name = finalFile.getName();
+                int targetType = -1;
+                if (name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png") || name.endsWith(".webp")) {
+                    targetType = FileLoader.MEDIA_DIR_IMAGE;
+                } else if (name.endsWith(".mp4") || name.endsWith(".mkv") || name.endsWith(".mov")) {
+                    targetType = FileLoader.MEDIA_DIR_VIDEO;
+                } else if (name.endsWith(".ogg") || name.endsWith(".oga") || name.endsWith(".mp3")) {
+                    targetType = FileLoader.MEDIA_DIR_AUDIO;
+                }
+                if (targetType != -1) {
+                    File destDir = FileLoader.getInstance(currentAccount).getDirectory(targetType);
+                    if (destDir != null) {
+                        File destFile = new File(destDir, name);
+                        duplicateFile(finalFile, destFile);
+                    }
+                }
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
+    public static File resolveMediaFile(File targetFile, int account) {
+        if (targetFile == null || TextUtils.isEmpty(targetFile.getName())) {
+            return targetFile;
+        }
+        if (targetFile.exists()) {
+            return targetFile;
+        }
+        String fileName = targetFile.getName();
+        File mediaDir = new File(ApplicationLoader.getFilesDirFixed(), "neatgram_media");
+
+        // 1. Check neatgram_media/
+        File fallback = new File(mediaDir, fileName);
+        if (fallback.exists()) {
+            duplicateFile(fallback, targetFile);
+            return targetFile.exists() ? targetFile : fallback;
+        }
+
+        // 2. Check cross-directory (cache vs standard)
+        try {
+            File cacheDir = FileLoader.getInstance(account).getDirectory(FileLoader.MEDIA_DIR_CACHE);
+            boolean isTargetInCache = targetFile.getParentFile() != null && targetFile.getParentFile().equals(cacheDir);
+
+            if (isTargetInCache) {
+                int[] types = new int[]{FileLoader.MEDIA_DIR_IMAGE, FileLoader.MEDIA_DIR_VIDEO, FileLoader.MEDIA_DIR_AUDIO, FileLoader.MEDIA_DIR_DOCUMENT};
+                for (int type : types) {
+                    File candidateDir = FileLoader.getInstance(account).getDirectory(type);
+                    if (candidateDir != null) {
+                        File candidate = new File(candidateDir, fileName);
+                        if (candidate.exists()) {
+                            duplicateFile(candidate, targetFile);
+                            protectMediaFile(candidate);
+                            return targetFile.exists() ? targetFile : candidate;
+                        }
+                    }
+                }
+            } else {
+                if (cacheDir != null) {
+                    File candidate = new File(cacheDir, fileName);
+                    if (candidate.exists()) {
+                        duplicateFile(candidate, targetFile);
+                        protectMediaFile(candidate);
+                        return targetFile.exists() ? targetFile : candidate;
+                    }
+                }
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+
+        // 3. Check .enc version if plain file was searched
+        if (!fileName.endsWith(".enc")) {
+            String encName = fileName + ".enc";
+            File encFallback = new File(mediaDir, encName);
+            File encLocal = new File(targetFile.getParentFile(), encName);
+            File encCandidate = encFallback.exists() ? encFallback : (encLocal.exists() ? encLocal : null);
+            if (encCandidate == null) {
+                File cacheDir = FileLoader.getInstance(account).getDirectory(FileLoader.MEDIA_DIR_CACHE);
+                if (cacheDir != null) {
+                    File candidate = new File(cacheDir, encName);
+                    if (candidate.exists()) {
+                        encCandidate = candidate;
+                    }
+                }
+            }
+            if (encCandidate != null) {
+                File keyFile = new File(FileLoader.getInternalCacheDir(), fileName + ".enc.key");
+                if (!keyFile.exists()) {
+                    File fallbackKey = new File(mediaDir, fileName + ".enc.key");
+                    if (fallbackKey.exists()) {
+                        duplicateFile(fallbackKey, keyFile);
+                    }
+                }
+                if (keyFile.exists() && decryptEncryptedFile(encCandidate, keyFile, targetFile)) {
+                    protectMediaFile(targetFile);
+                    return targetFile;
+                }
+            }
+        }
+
+        return targetFile;
     }
 
     public static File getMediaFallbackFile(String fileName) {

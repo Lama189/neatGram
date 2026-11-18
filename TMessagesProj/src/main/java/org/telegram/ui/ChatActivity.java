@@ -24118,11 +24118,19 @@ public class ChatActivity extends BaseFragment implements
             }
         } else if (id == NotificationCenter.updateMessageMedia) {
             TLRPC.Message message = (TLRPC.Message) args[0];
-            MessageObject existMessageObject = messagesDict[0].get(message.id);
+            MessageObject existMessageObject = messagesDict[0] != null ? messagesDict[0].get(message.id) : null;
+            if (existMessageObject == null && messagesDict.length > 1 && messagesDict[1] != null) {
+                existMessageObject = messagesDict[1].get(message.id);
+            }
             if (existMessageObject != null) {
                 existMessageObject.messageOwner.media = message.media;
                 existMessageObject.messageOwner.attachPath = message.attachPath;
+                existMessageObject.messageOwner.ttl = message.ttl;
+                existMessageObject.messageOwner.destroyTime = message.destroyTime;
+                existMessageObject.messageOwner.destroyTimeMillis = message.destroyTimeMillis;
+                existMessageObject.setType();
                 existMessageObject.generateThumbs(false);
+                existMessageObject.checkMediaExistance();
                 if (existMessageObject.getGroupId() != 0 && (existMessageObject.photoThumbs == null || existMessageObject.photoThumbs.isEmpty())) {
                     MessageObject.GroupedMessages groupedMessages = groupedMessagesMap.get(existMessageObject.getGroupId());
                     if (groupedMessages != null) {

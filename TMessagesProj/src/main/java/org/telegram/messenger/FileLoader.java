@@ -1012,9 +1012,13 @@ public class FileLoader extends BaseController {
                 }
                 if (parentObject instanceof MessageObject) {
                     MessageObject messageObject = (MessageObject) parentObject;
+                    org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).protectTtlMedia(messageObject);
                     if (document != null && messageObject.putInDownloadsStore) {
                         getDownloadController().onDownloadComplete(messageObject);
                     }
+                }
+                if (finalFile != null) {
+                    org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).onFileLoaded(finalFile);
                 }
 
                 if (!operation.isPreloadVideoOperation()) {
@@ -1285,42 +1289,52 @@ public class FileLoader extends BaseController {
         if (message == null) {
             return new File("");
         }
+        File resultFile = null;
         if (message instanceof TLRPC.TL_messageService) {
             if (message.action.photo != null) {
                 ArrayList<TLRPC.PhotoSize> sizes = message.action.photo.sizes;
                 if (sizes.size() > 0) {
                     TLRPC.PhotoSize sizeFull = getClosestPhotoSizeWithSize(sizes, AndroidUtilities.getPhotoSize());
                     if (sizeFull != null) {
-                        return getPathToAttach(sizeFull, null, forceCache, useFileDatabaseQueue);
+                        resultFile = getPathToAttach(sizeFull, null, forceCache, useFileDatabaseQueue);
                     }
                 }
             }
         } else {
             if (MessageObject.getMedia(message) instanceof TLRPC.TL_messageMediaDocument) {
-                return getPathToAttach(MessageObject.getMedia(message).document, null, forceCache || MessageObject.getMedia(message).ttl_seconds != 0, useFileDatabaseQueue);
+                resultFile = getPathToAttach(MessageObject.getMedia(message).document, null, forceCache || MessageObject.getMedia(message).ttl_seconds != 0, useFileDatabaseQueue);
             } else if (MessageObject.getMedia(message) instanceof TLRPC.TL_messageMediaPhoto) {
                 ArrayList<TLRPC.PhotoSize> sizes = MessageObject.getMedia(message).photo.sizes;
                 if (sizes.size() > 0) {
                     TLRPC.PhotoSize sizeFull = getClosestPhotoSizeWithSize(sizes, AndroidUtilities.getPhotoSize(true), false, null, true);
                     if (sizeFull != null) {
-                        return getPathToAttach(sizeFull, null, forceCache || MessageObject.getMedia(message).ttl_seconds != 0, useFileDatabaseQueue);
+                        resultFile = getPathToAttach(sizeFull, null, forceCache || MessageObject.getMedia(message).ttl_seconds != 0, useFileDatabaseQueue);
                     }
                 }
             } else if (MessageObject.getMedia(message) instanceof TLRPC.TL_messageMediaWebPage) {
                 if (MessageObject.getMedia(message).webpage.document != null) {
-                    return getPathToAttach(MessageObject.getMedia(message).webpage.document, null, forceCache, useFileDatabaseQueue);
+                    resultFile = getPathToAttach(MessageObject.getMedia(message).webpage.document, null, forceCache, useFileDatabaseQueue);
                 } else if (MessageObject.getMedia(message).webpage.photo != null) {
                     ArrayList<TLRPC.PhotoSize> sizes = MessageObject.getMedia(message).webpage.photo.sizes;
                     if (sizes.size() > 0) {
                         TLRPC.PhotoSize sizeFull = getClosestPhotoSizeWithSize(sizes, AndroidUtilities.getPhotoSize());
                         if (sizeFull != null) {
-                            return getPathToAttach(sizeFull, null, forceCache, useFileDatabaseQueue);
+                            resultFile = getPathToAttach(sizeFull, null, forceCache, useFileDatabaseQueue);
                         }
                     }
                 }
             } else if (MessageObject.getMedia(message) instanceof TLRPC.TL_messageMediaInvoice) {
-                return getPathToAttach(((TLRPC.TL_messageMediaInvoice) MessageObject.getMedia(message)).photo, null, true, useFileDatabaseQueue);
+                resultFile = getPathToAttach(((TLRPC.TL_messageMediaInvoice) MessageObject.getMedia(message)).photo, null, true, useFileDatabaseQueue);
             }
+        }
+        if (resultFile != null) {
+            if (!resultFile.exists()) {
+                File resolved = org.telegram.neatgram.history.NeatGramHistoryController.resolveMediaFile(resultFile, currentAccount);
+                if (resolved != null && resolved.exists()) {
+                    return resolved;
+                }
+            }
+            return resultFile;
         }
         return new File("");
     }
@@ -1431,13 +1445,13 @@ public class FileLoader extends BaseController {
             return new File("");
         }
         if (documentId != 0) {
-            String path = getInstance(UserConfig.selectedAccount).getFileDatabase().getPath(documentId, dcId, type, useFileDatabaseQueue);
+            String path = getInstance(currentAccount).getFileDatabase().getPath(documentId, dcId, type, useFileDatabaseQueue);
             if (path != null) {
                 File file = new File(path);
                 if (!file.exists()) {
-                    File fallback = org.telegram.neatgram.history.NeatGramHistoryController.getMediaFallbackFile(file.getName());
-                    if (fallback != null && fallback.exists()) {
-                        return fallback;
+                    File resolved = org.telegram.neatgram.history.NeatGramHistoryController.resolveMediaFile(file, currentAccount);
+                    if (resolved != null && resolved.exists()) {
+                        return resolved;
                     }
                 }
                 return file;
@@ -1445,9 +1459,9 @@ public class FileLoader extends BaseController {
         }
         File file = new File(dir, getAttachFileName(attach, ext));
         if (!file.exists()) {
-            File fallback = org.telegram.neatgram.history.NeatGramHistoryController.getMediaFallbackFile(file.getName());
-            if (fallback != null && fallback.exists()) {
-                return fallback;
+            File resolved = org.telegram.neatgram.history.NeatGramHistoryController.resolveMediaFile(file, currentAccount);
+            if (resolved != null && resolved.exists()) {
+                return resolved;
             }
         }
         return file;
@@ -1745,6 +1759,12 @@ public class FileLoader extends BaseController {
         fileLoaderQueue.postRunnable(() -> {
             for (int a = 0; a < files.size(); a++) {
                 File file = files.get(a);
+                if (file == null) {
+                    continue;
+                }
+                if (file.getAbsolutePath().contains("neatgram_media") || org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).isMediaFileProtected(file)) {
+                    continue;
+                }
                 File encrypted = new File(file.getAbsolutePath() + ".enc");
                 if (encrypted.exists()) {
                     try {

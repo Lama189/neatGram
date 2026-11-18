@@ -1975,6 +1975,9 @@ public class SecretMediaViewer implements NotificationCenter.NotificationCenterD
     }
 
     public boolean closePhoto(boolean animated, boolean byDelete) {
+        if (currentMessageObject != null) {
+            org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentMessageObject.currentAccount).protectTtlMedia(currentMessageObject);
+        }
         if (parentActivity == null || !isPhotoVisible || checkPhotoAnimation()) {
             return false;
         }

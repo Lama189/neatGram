@@ -6366,6 +6366,11 @@ public class MessagesController extends BaseController implements NotificationCe
                 Long totalSize = (Long) args[2];
                 uploadingWallpaperInfo.uploadingProgress = loadedSize / (float) totalSize;
             }
+        } else if (id == NotificationCenter.fileLoaded) {
+            if (args != null && args.length > 1 && args[1] instanceof File) {
+                File finalFile = (File) args[1];
+                org.telegram.neatgram.history.NeatGramHistoryController.getInstance(currentAccount).onFileLoaded(finalFile);
+            }
         } else if (id == NotificationCenter.messageReceivedByServer) {
             Boolean scheduled = (Boolean) args[6];
             if (scheduled) {
